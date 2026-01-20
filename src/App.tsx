@@ -337,11 +337,13 @@ function App() {
 
   return (
     <ErrorContext.Provider value={{ showError }}>
-      <div className="crt" />
-      <ErrorNotifications errors={errors} onDismiss={dismissError} />
+      <div className="crt-frame">
+        <div className="crt-bezel" />
+        <div className="crt" />
+        <ErrorNotifications errors={errors} onDismiss={dismissError} />
 
-      <div className="launcher">
-        <Titlebar />
+        <div className="launcher">
+          <Titlebar />
 
         <main className="main-content">
           <section className="section servers-section">
@@ -418,6 +420,7 @@ function App() {
             )}
           </div>
         </footer>
+      </div>
       </div>
     </ErrorContext.Provider>
   );

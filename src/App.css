@@ -37,6 +37,36 @@ body {
   flex-direction: column;
 }
 
+.crt-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.crt-bezel {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1001;
+  border: 3px solid #0a0a0a;
+  box-shadow:
+    inset 0 0 0 1px #333,
+    inset 0 0 0 2px #1a1a1a,
+    inset 0 0 20px rgba(0, 0, 0, 0.8),
+    inset 0 0 3px 1px rgba(0, 235, 78, 0.3);
+  border-radius: 2px;
+}
+
+.crt-bezel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(0, 235, 78, 0.2);
+  border-radius: 1px;
+}
+
 .crt {
   pointer-events: none;
   position: fixed;
