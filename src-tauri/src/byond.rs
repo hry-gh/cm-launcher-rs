@@ -85,8 +85,7 @@ fn get_byond_download_url(version: &str) -> Result<String, String> {
     // BYOND download URL format
     Ok(format!(
         "https://www.byond.com/download/build/{}/{}_byond.zip",
-        major,
-        version.replace('.', "_")
+        major, version
     ))
 }
 
