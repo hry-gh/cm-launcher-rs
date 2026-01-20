@@ -82,7 +82,6 @@ fn get_byond_download_url(version: &str) -> Result<String, String> {
 
     let major = parts[0];
 
-    // BYOND download URL format
     Ok(format!(
         "https://www.byond.com/download/build/{}/{}_byond.zip",
         major, version
@@ -95,7 +94,6 @@ pub async fn install_byond_version(
     app: AppHandle,
     version: String,
 ) -> Result<ByondVersionInfo, String> {
-    // First check if already installed
     let existing = check_byond_version(app.clone(), version.clone()).await?;
     if existing.installed {
         return Ok(existing);
@@ -104,10 +102,8 @@ pub async fn install_byond_version(
     let download_url = get_byond_download_url(&version)?;
     let version_dir = get_byond_version_dir(&app, &version)?;
 
-    // Create the version directory
     fs::create_dir_all(&version_dir).map_err(|e| format!("Failed to create directory: {}", e))?;
 
-    // Download the zip file
     let zip_path = version_dir.join("byond.zip");
 
     let response = reqwest::get(&download_url)
@@ -129,7 +125,6 @@ pub async fn install_byond_version(
 
     fs::write(&zip_path, &bytes).map_err(|e| format!("Failed to save download: {}", e))?;
 
-    // Extract the zip file
     let file = fs::File::open(&zip_path).map_err(|e| format!("Failed to open zip file: {}", e))?;
 
     let mut archive =
@@ -161,7 +156,6 @@ pub async fn install_byond_version(
                 .map_err(|e| format!("Failed to extract file: {}", e))?;
         }
 
-        // Set permissions on Unix
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -171,10 +165,8 @@ pub async fn install_byond_version(
         }
     }
 
-    // Clean up the zip file
     fs::remove_file(&zip_path).ok();
 
-    // Return updated info
     check_byond_version(app, version).await
 }
 
@@ -186,7 +178,6 @@ pub async fn connect_to_server(
     host: String,
     port: String,
 ) -> Result<ConnectionResult, String> {
-    // Ensure the version is installed
     let version_info = install_byond_version(app.clone(), version.clone()).await?;
 
     if !version_info.installed {
@@ -195,10 +186,8 @@ pub async fn connect_to_server(
 
     let dreamseeker_path = version_info.path.ok_or("DreamSeeker path not found")?;
 
-    // Build the connection URL
     let connect_url = format!("byond://{}:{}", host, port);
 
-    // Launch DreamSeeker
     #[cfg(target_os = "windows")]
     {
         Command::new(&dreamseeker_path)
