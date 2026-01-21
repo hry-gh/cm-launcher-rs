@@ -1,16 +1,9 @@
 name: "Steam Deploy"
 
 on:
-  workflow_dispatch:
-    inputs:
-      release_branch:
-        description: "Steam branch to deploy to"
-        required: true
-        default: "beta"
-        type: choice
-        options:
-          - beta
-          - prerelease
+  push:
+    tags:
+      - "v*"
 
 env:
   STEAM_APP_ID: ${{ vars.STEAM_APP_ID }}
@@ -264,4 +257,4 @@ jobs:
           depot1Path: windows
           depot2Path: linux
           depot3Path: macos
-          releaseBranch: ${{ inputs.release_branch }}
+          releaseBranch: default
