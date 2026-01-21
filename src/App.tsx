@@ -1,6 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 import {
   createContext,
@@ -25,7 +26,29 @@ interface AuthState {
   error: string | null;
 }
 
-type AuthMode = "cm_ss13" | "byond";
+type AuthMode = "cm_ss13" | "byond" | "steam";
+
+interface SteamUserInfo {
+  steam_id: string;
+  display_name: string;
+}
+
+interface SteamAuthResult {
+  success: boolean;
+  user_exists: boolean;
+  access_token: string | null;
+  requires_linking: boolean;
+  linking_url: string | null;
+  error: string | null;
+}
+
+interface SteamAuthState {
+  available: boolean;
+  user: SteamUserInfo | null;
+  access_token: string | null;
+  loading: boolean;
+  error: string | null;
+}
 
 interface AppSettings {
   auth_mode: AuthMode;
@@ -128,9 +151,92 @@ function AuthModal({
   );
 }
 
+interface SteamAuthModalProps {
+  visible: boolean;
+  state: "idle" | "loading" | "linking" | "error";
+  error?: string;
+  linkingUrl?: string;
+  onAuthenticate: (createAccount: boolean) => void;
+  onClose: () => void;
+}
+
+function SteamAuthModal({
+  visible,
+  state,
+  error,
+  linkingUrl,
+  onAuthenticate,
+  onClose,
+}: SteamAuthModalProps) {
+  if (!visible) return null;
+
+  const openLinkingUrl = async () => {
+    if (linkingUrl) {
+      await openUrl(linkingUrl);
+    }
+  };
+
+  return (
+    <div className="auth-modal-overlay">
+      <div className="auth-modal">
+        <button type="button" className="modal-close-button" onClick={onClose}>
+          x
+        </button>
+        {state === "idle" && (
+          <>
+            <h2>Steam Authentication</h2>
+            <p>Authenticating with Steam...</p>
+            <div className="auth-spinner" />
+          </>
+        )}
+        {state === "loading" && (
+          <>
+            <h2>Authenticating...</h2>
+            <p>Validating your Steam account...</p>
+            <div className="auth-spinner" />
+          </>
+        )}
+        {state === "linking" && (
+          <>
+            <h2>Account Linking</h2>
+            <p>No CM-SS13 account is linked to your Steam account.</p>
+            <p>Do you have an existing CM-SS13 account?</p>
+            <div className="auth-modal-buttons">
+              <button type="button" className="button" onClick={openLinkingUrl}>
+                Yes, link my account
+              </button>
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={() => onAuthenticate(true)}
+              >
+                No, create new account
+              </button>
+            </div>
+          </>
+        )}
+        {state === "error" && (
+          <>
+            <h2>Authentication Failed</h2>
+            <p className="auth-error-message">{error}</p>
+            <button
+              type="button"
+              className="button"
+              onClick={() => onAuthenticate(false)}
+            >
+              Try Again
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface SettingsModalProps {
   visible: boolean;
   authMode: AuthMode;
+  steamAvailable: boolean;
   onAuthModeChange: (mode: AuthMode) => void;
   onClose: () => void;
 }
@@ -138,6 +244,7 @@ interface SettingsModalProps {
 function SettingsModal({
   visible,
   authMode,
+  steamAvailable,
   onAuthModeChange,
   onClose,
 }: SettingsModalProps) {
@@ -180,6 +287,25 @@ function SettingsModal({
                   </span>
                 </div>
               </label>
+              {steamAvailable && (
+                <label
+                  className={`auth-mode-option ${authMode === "steam" ? "selected" : ""}`}
+                >
+                  <input
+                    type="radio"
+                    name="authMode"
+                    value="steam"
+                    checked={authMode === "steam"}
+                    onChange={() => onAuthModeChange("steam")}
+                  />
+                  <div className="auth-mode-info">
+                    <span className="auth-mode-name">Steam Authentication</span>
+                    <span className="auth-mode-desc">
+                      Login with your Steam account
+                    </span>
+                  </div>
+                </label>
+              )}
               <label
                 className={`auth-mode-option ${authMode === "byond" ? "selected" : ""}`}
               >
@@ -323,7 +449,9 @@ interface ServerItemProps {
   relays: RelayWithPing[];
   isLoggedIn: boolean;
   authMode: AuthMode;
+  steamAccessToken: string | null;
   onLoginRequired: () => void;
+  onSteamAuthRequired: () => void;
 }
 
 function ServerItem({
@@ -332,7 +460,9 @@ function ServerItem({
   relays,
   isLoggedIn,
   authMode,
+  steamAccessToken,
   onLoginRequired,
+  onSteamAuthRequired,
 }: ServerItemProps) {
   const [connecting, setConnecting] = useState(false);
   const { showError } = useError();
@@ -350,6 +480,11 @@ function ServerItem({
       return;
     }
 
+    if (authMode === "steam" && !steamAccessToken) {
+      onSteamAuthRequired();
+      return;
+    }
+
     if (!relay || !byondVersion || !port) return;
 
     setConnecting(true);
@@ -358,12 +493,15 @@ function ServerItem({
       let accessToken: string | null = null;
       if (authMode === "cm_ss13") {
         accessToken = await invoke<string | null>("get_access_token");
+      } else if (authMode === "steam") {
+        accessToken = steamAccessToken;
       }
 
       await invoke("connect_to_server", {
         version: byondVersion,
         host: relay.host,
         port: port,
+        accessType: authMode,
         accessToken: accessToken,
         serverName: server.name,
       });
@@ -479,6 +617,21 @@ function App() {
   const [authMode, setAuthMode] = useState<AuthMode>("cm_ss13");
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
+  // Steam auth state
+  const [steamAuthState, setSteamAuthState] = useState<SteamAuthState>({
+    available: false,
+    user: null,
+    access_token: null,
+    loading: false,
+    error: null,
+  });
+  const [showSteamAuthModal, setShowSteamAuthModal] = useState(false);
+  const [steamAuthModalState, setSteamAuthModalState] = useState<
+    "idle" | "loading" | "linking" | "error"
+  >("idle");
+  const [steamAuthError, setSteamAuthError] = useState<string | undefined>();
+  const [steamLinkingUrl, setSteamLinkingUrl] = useState<string | undefined>();
+
   const showError = useCallback(
     (message: string) => {
       const id = errorIdCounter;
@@ -519,11 +672,35 @@ function App() {
 
   useEffect(() => {
     const loadInitialState = async () => {
+      let settings: AppSettings | null = null;
+      let steamAvailable = false;
       try {
-        const settings = await invoke<AppSettings>("get_settings");
-        setAuthMode(settings.auth_mode);
+        settings = await invoke<AppSettings>("get_settings");
       } catch (err) {
         console.error("Failed to load settings:", err);
+      }
+
+      try {
+        const steamUser = await invoke<SteamUserInfo>("get_steam_user_info");
+        setSteamAuthState((prev) => ({
+          ...prev,
+          available: true,
+          user: steamUser,
+        }));
+        steamAvailable = true;
+      } catch {
+        setSteamAuthState((prev) => ({
+          ...prev,
+          available: false,
+        }));
+      }
+
+      if (settings?.auth_mode) {
+        setAuthMode(settings.auth_mode);
+      } else if (steamAvailable) {
+        setAuthMode("steam");
+      } else {
+        setAuthMode("cm_ss13");
       }
 
       try {
@@ -605,6 +782,57 @@ function App() {
     setAuthModalState("idle");
   }, []);
 
+  const handleSteamAuthenticate = useCallback(
+    async (createAccountIfMissing: boolean) => {
+      setSteamAuthModalState("loading");
+      setSteamAuthError(undefined);
+      setSteamLinkingUrl(undefined);
+
+      try {
+        const result = await invoke<SteamAuthResult>("steam_authenticate", {
+          createAccountIfMissing,
+        });
+
+        console.log(result);
+
+        if (result.success && result.access_token) {
+          setSteamAuthState((prev) => ({
+            ...prev,
+            access_token: result.access_token,
+            error: null,
+          }));
+          setShowSteamAuthModal(false);
+          setSteamAuthModalState("idle");
+        } else if (result.requires_linking) {
+          setSteamAuthModalState("linking");
+          setSteamLinkingUrl(result.linking_url || undefined);
+        } else {
+          setSteamAuthModalState("error");
+          setSteamAuthError(result.error || "Authentication failed");
+        }
+      } catch (err) {
+        setSteamAuthModalState("error");
+        setSteamAuthError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [],
+  );
+
+  const onSteamAuthRequired = useCallback(() => {
+    setShowSteamAuthModal(true);
+    handleSteamAuthenticate(false);
+  }, [handleSteamAuthenticate]);
+
+  const onSteamAuthModalClose = useCallback(async () => {
+    setShowSteamAuthModal(false);
+    setSteamAuthModalState("idle");
+    try {
+      await invoke("cancel_steam_auth_ticket");
+    } catch {
+      // Ignore errors when canceling
+    }
+  }, []);
+
   const handleAuthModeChange = useCallback(
     async (mode: AuthMode) => {
       try {
@@ -631,9 +859,18 @@ function App() {
           onLogin={handleLogin}
           onClose={onAuthModalClose}
         />
+        <SteamAuthModal
+          visible={showSteamAuthModal}
+          state={steamAuthModalState}
+          error={steamAuthError}
+          linkingUrl={steamLinkingUrl}
+          onAuthenticate={handleSteamAuthenticate}
+          onClose={onSteamAuthModalClose}
+        />
         <SettingsModal
           visible={showSettingsModal}
           authMode={authMode}
+          steamAvailable={steamAuthState.available}
           onAuthModeChange={handleAuthModeChange}
           onClose={() => setShowSettingsModal(false)}
         />
@@ -656,7 +893,9 @@ function App() {
                     relays={relays}
                     isLoggedIn={authState.logged_in}
                     authMode={authMode}
+                    steamAccessToken={steamAuthState.access_token}
                     onLoginRequired={onLoginRequired}
+                    onSteamAuthRequired={onSteamAuthRequired}
                   />
                 ))}
               </div>
@@ -675,6 +914,42 @@ function App() {
                     </div>
                   </div>
                 </>
+              ) : authMode === "steam" ? (
+                steamAuthState.access_token ? (
+                  <>
+                    <div className="account-avatar">S</div>
+                    <div className="account-details">
+                      <div className="account-name">
+                        {steamAuthState.user?.display_name || "Steam User"}
+                      </div>
+                      <div className="account-status">Logged in via Steam</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() =>
+                        setSteamAuthState((prev) => ({
+                          ...prev,
+                          access_token: null,
+                        }))
+                      }
+                    >
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="account-avatar">S</div>
+                    <div className="account-details">
+                      <div className="account-name">
+                        {steamAuthState.user?.display_name || "Steam"}
+                      </div>
+                      <div className="account-status">
+                        Click connect to authenticate
+                      </div>
+                    </div>
+                  </>
+                )
               ) : authState.logged_in && authState.user ? (
                 <>
                   <div className="account-avatar">

@@ -1,0 +1,130 @@
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
+use tauri::State;
+
+use super::SteamState;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SteamUserInfo {
+    pub steam_id: String,
+    pub display_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SteamAuthResult {
+    pub success: bool,
+    pub user_exists: bool,
+    pub access_token: Option<String>,
+    pub requires_linking: bool,
+    pub linking_url: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SteamAuthRequest {
+    ticket: String,
+    steam_id: String,
+    display_name: String,
+    create_account_if_missing: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SteamAuthResponse {
+    success: bool,
+    user_exists: bool,
+    access_token: Option<String>,
+    requires_linking: bool,
+    linking_url: Option<String>,
+    error: Option<String>,
+}
+
+#[tauri::command]
+pub async fn get_steam_user_info(
+    steam_state: State<'_, Arc<SteamState>>,
+) -> Result<SteamUserInfo, String> {
+    let steam_id = steam_state.get_steam_id().to_string();
+    let display_name = steam_state.get_display_name();
+
+    Ok(SteamUserInfo {
+        steam_id,
+        display_name,
+    })
+}
+
+#[tauri::command]
+pub async fn get_steam_auth_ticket(
+    steam_state: State<'_, Arc<SteamState>>,
+) -> Result<String, String> {
+    let ticket_bytes = steam_state.get_auth_session_ticket()?;
+    Ok(hex::encode(ticket_bytes))
+}
+
+#[tauri::command]
+pub async fn cancel_steam_auth_ticket(
+    steam_state: State<'_, Arc<SteamState>>,
+) -> Result<(), String> {
+    steam_state.cancel_auth_ticket();
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn steam_authenticate(
+    steam_state: State<'_, Arc<SteamState>>,
+    create_account_if_missing: bool,
+) -> Result<SteamAuthResult, String> {
+    // Get user info
+    let steam_id = steam_state.get_steam_id().to_string();
+    let display_name = steam_state.get_display_name();
+
+    // Get auth ticket
+    let ticket_bytes = steam_state.get_auth_session_ticket()?;
+    let ticket = hex::encode(&ticket_bytes);
+
+    // Call CM API
+    let client = reqwest::Client::new();
+    let request = SteamAuthRequest {
+        ticket,
+        steam_id,
+        display_name,
+        create_account_if_missing,
+    };
+
+    let response = client
+        .post("https://db.cm-ss13.com/api/Steam/Authenticate")
+        .json(&request)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to contact auth server: {}", e))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        // Cancel the ticket since auth failed
+        steam_state.cancel_auth_ticket();
+        return Err(format!("Auth server error ({}): {}", status, body));
+    }
+
+    let auth_response: SteamAuthResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse auth response: {}", e))?;
+
+    // Cancel ticket if auth wasn't successful (we don't need to keep it alive)
+    if !auth_response.success {
+        steam_state.cancel_auth_ticket();
+    }
+
+    if let Some(token) = &auth_response.access_token {
+        eprintln!("{}", token);
+    }
+
+    Ok(SteamAuthResult {
+        success: auth_response.success,
+        user_exists: auth_response.user_exists,
+        access_token: auth_response.access_token,
+        requires_linking: auth_response.requires_linking,
+        linking_url: auth_response.linking_url,
+        error: auth_response.error,
+    })
+}

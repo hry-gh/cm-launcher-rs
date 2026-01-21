@@ -9,6 +9,7 @@ dependencies = [
  "aes-gcm",
  "chrono",
  "dirs 5.0.1",
+ "hex",
  "oauth2",
  "open",
  "rand 0.8.5",

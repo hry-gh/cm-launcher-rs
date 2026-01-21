@@ -1,7 +1,7 @@
 use std::process::Child;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use steamworks::Client;
+use steamworks::{AuthTicket, Client};
 
 #[derive(Debug, Clone)]
 pub struct GameSession {
@@ -13,6 +13,7 @@ pub struct SteamState {
     client: Client,
     game_session: Arc<Mutex<Option<GameSession>>>,
     game_process: Arc<Mutex<Option<Child>>>,
+    active_ticket: Arc<Mutex<Option<AuthTicket>>>,
 }
 
 impl SteamState {
@@ -22,7 +23,31 @@ impl SteamState {
             client,
             game_session: Arc::new(Mutex::new(None)),
             game_process: Arc::new(Mutex::new(None)),
+            active_ticket: Arc::new(Mutex::new(None)),
         })
+    }
+
+    pub fn get_steam_id(&self) -> u64 {
+        self.client.user().steam_id().raw()
+    }
+
+    pub fn get_display_name(&self) -> String {
+        self.client.friends().name()
+    }
+
+    pub fn get_auth_session_ticket(&self) -> Result<Vec<u8>, String> {
+        let identity = steamworks::networking_types::NetworkingIdentity::new();
+        let (ticket, ticket_bytes) = self.client.user().authentication_session_ticket(identity);
+
+        let mut active = self.active_ticket.lock().unwrap();
+        *active = Some(ticket);
+
+        Ok(ticket_bytes)
+    }
+
+    pub fn cancel_auth_ticket(&self) {
+        let mut active = self.active_ticket.lock().unwrap();
+        *active = None;
     }
 
     pub fn client(&self) -> &Client {

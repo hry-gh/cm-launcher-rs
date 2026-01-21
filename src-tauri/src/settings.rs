@@ -11,6 +11,7 @@ pub enum AuthMode {
     #[default]
     CmSs13,
     Byond,
+    Steam,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

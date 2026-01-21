@@ -601,6 +601,18 @@ body {
   margin-top: 8px;
 }
 
+.auth-modal-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.auth-modal-buttons .button,
+.auth-modal-buttons .button-secondary {
+  margin-top: 0;
+}
+
 .auth-spinner {
   width: 40px;
   height: 40px;

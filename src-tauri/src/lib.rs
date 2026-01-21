@@ -13,6 +13,11 @@ use byond::{
 };
 use settings::{get_settings, set_auth_mode};
 
+#[cfg(feature = "steam")]
+use steam::{
+    cancel_steam_auth_ticket, get_steam_auth_ticket, get_steam_user_info, steam_authenticate,
+};
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
@@ -31,8 +36,11 @@ pub fn run() {
 
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![
+        .plugin(tauri_plugin_opener::init());
+
+    #[cfg(not(feature = "steam"))]
+    {
+        builder = builder.invoke_handler(tauri::generate_handler![
             greet,
             check_byond_version,
             install_byond_version,
@@ -47,6 +55,30 @@ pub fn run() {
             get_settings,
             set_auth_mode,
         ]);
+    }
+
+    #[cfg(feature = "steam")]
+    {
+        builder = builder.invoke_handler(tauri::generate_handler![
+            greet,
+            check_byond_version,
+            install_byond_version,
+            connect_to_server,
+            list_installed_byond_versions,
+            delete_byond_version,
+            start_login,
+            logout,
+            get_auth_state,
+            refresh_auth,
+            get_access_token,
+            get_settings,
+            set_auth_mode,
+            get_steam_user_info,
+            get_steam_auth_ticket,
+            cancel_steam_auth_ticket,
+            steam_authenticate,
+        ]);
+    }
 
     // Initialize Steam state if feature is enabled
     #[cfg(feature = "steam")]

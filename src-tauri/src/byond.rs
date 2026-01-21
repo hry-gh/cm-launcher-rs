@@ -174,6 +174,7 @@ pub async fn connect_to_server(
     version: String,
     host: String,
     port: String,
+    access_type: Option<String>,
     access_token: Option<String>,
     server_name: String,
 ) -> Result<ConnectionResult, String> {
@@ -185,9 +186,11 @@ pub async fn connect_to_server(
 
     let dreamseeker_path = version_info.path.ok_or("DreamSeeker path not found")?;
 
-    let connect_url = match access_token {
-        Some(token) => format!("byond://{}:{}?access_token={}", host, port, token),
-        None => format!("byond://{}:{}", host, port),
+    let connect_url = match (access_type, access_token) {
+        (Some(access_type), Some(token)) => {
+            format!("byond://{}:{}?{}={}", host, port, access_type, token)
+        }
+        _ => format!("byond://{}:{}", host, port),
     };
 
     #[cfg(target_os = "windows")]
@@ -195,8 +198,7 @@ pub async fn connect_to_server(
         // Set a unique WebView2 user data folder to avoid conflicts with the system BYOND pager.
         // When the BYOND pager is running, it locks the default WebView2 user data directory,
         // preventing our DreamSeeker from using WebView2. Using a separate folder resolves this.
-        let webview2_data_dir = get_byond_base_dir(&app)?
-            .join("webview2_data");
+        let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
 
         let child = Command::new(&dreamseeker_path)
             .arg(&connect_url)
