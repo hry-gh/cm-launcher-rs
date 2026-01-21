@@ -6,7 +6,6 @@ use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "windows")]
 use std::process::Command;
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ByondVersionInfo {
     pub version: String,
@@ -200,6 +199,8 @@ pub async fn connect_to_server(
 
         #[cfg(feature = "steam")]
         {
+            use std::sync::Arc;
+
             if let Some(steam_state) = app.try_state::<Arc<crate::steam::SteamState>>() {
                 steam_state.start_game_session(
                     server_name.clone(),
