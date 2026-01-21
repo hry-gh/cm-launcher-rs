@@ -71,7 +71,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path steam-build/windows
-          Copy-Item "src-tauri/target/release/cm-launcher-rs.exe" -Destination "steam-build/windows/"
+          Copy-Item "src-tauri/target/release/CM_Launcher.exe" -Destination "steam-build/windows/"
           Copy-Item "src-tauri/resources/steam_api64.dll" -Destination "steam-build/windows/"
 
       - name: Upload Windows build
