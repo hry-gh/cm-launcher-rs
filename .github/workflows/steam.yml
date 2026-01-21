@@ -1,0 +1,225 @@
+name: "Steam Deploy"
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_branch:
+        description: "Steam branch to deploy to"
+        required: true
+        default: "beta"
+        type: choice
+        options:
+          - beta
+          - prerelease
+
+env:
+  STEAM_APP_ID: ${{ vars.STEAM_APP_ID }}
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Download Steamworks SDK
+        shell: pwsh
+        env:
+          STEAMWORKS_SDK_URL: ${{ secrets.STEAMWORKS_SDK_URL }}
+        run: |
+          Invoke-WebRequest -Uri "$env:STEAMWORKS_SDK_URL" -OutFile "steamworks_sdk.zip"
+          Expand-Archive -Path "steamworks_sdk.zip" -DestinationPath "steamworks_sdk"
+
+      - name: Install Steam SDK library
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources"
+          Copy-Item "steamworks_sdk/sdk/redistributable_bin/win64/steam_api64.dll" -Destination "src-tauri/resources/"
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --features steam
+
+      - name: Prepare Windows artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path steam-build/windows
+          Copy-Item "src-tauri/target/release/cm-launcher-rs.exe" -Destination "steam-build/windows/"
+          Copy-Item "src-tauri/resources/steam_api64.dll" -Destination "steam-build/windows/"
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: steam-build/windows/
+          retention-days: 1
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Download Steamworks SDK
+        env:
+          STEAMWORKS_SDK_URL: ${{ secrets.STEAMWORKS_SDK_URL }}
+        run: |
+          curl -L "$STEAMWORKS_SDK_URL" -o steamworks_sdk.zip
+          unzip steamworks_sdk.zip -d steamworks_sdk
+
+      - name: Install Steam SDK library
+        run: |
+          mkdir -p src-tauri/resources
+          cp steamworks_sdk/sdk/redistributable_bin/linux64/libsteam_api.so src-tauri/resources/
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --features steam
+
+      - name: Prepare Linux artifacts
+        run: |
+          mkdir -p steam-build/linux
+          find src-tauri/target/release/bundle -name "*.AppImage" -exec cp {} steam-build/linux/ \;
+          cp src-tauri/resources/libsteam_api.so steam-build/linux/
+
+      - name: Upload Linux build
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: steam-build/linux/
+          retention-days: 1
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Download Steamworks SDK
+        env:
+          STEAMWORKS_SDK_URL: ${{ secrets.STEAMWORKS_SDK_URL }}
+        run: |
+          curl -L "$STEAMWORKS_SDK_URL" -o steamworks_sdk.zip
+          unzip steamworks_sdk.zip -d steamworks_sdk
+
+      - name: Install Steam SDK library
+        run: |
+          mkdir -p src-tauri/resources
+          cp steamworks_sdk/sdk/redistributable_bin/osx/libsteam_api.dylib src-tauri/resources/
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build Tauri app (Universal Binary)
+        uses: tauri-apps/tauri-action@v0.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --features steam --target universal-apple-darwin
+
+      - name: Prepare macOS artifacts
+        run: |
+          mkdir -p steam-build/macos
+
+          APP_PATH=$(find src-tauri/target/universal-apple-darwin/release/bundle -name "*.app" -type d | head -1)
+          if [ -n "$APP_PATH" ]; then
+            cp -R "$APP_PATH" steam-build/macos/
+          fi
+          cp src-tauri/resources/libsteam_api.dylib steam-build/macos/
+
+      - name: Upload macOS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: steam-build/macos/
+          retention-days: 1
+
+  deploy-steam:
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: build/windows
+
+      - name: Download Linux build
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-build
+          path: build/linux
+
+      - name: Download macOS build
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-build
+          path: build/macos
+
+      - name: Get version from Cargo.toml
+        id: version
+        run: |
+          VERSION=$(grep -m1 'version' src-tauri/Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate Steam TOTP
+        id: steam-totp
+        uses: andriivitiv/steam-totp@v1
+        with:
+          shared_secret: ${{ secrets.STEAM_SHARED_SECRET }}
+
+      - name: Deploy to Steam
+        uses: game-ci/steam-deploy@v3
+        with:
+          username: ${{ secrets.STEAM_USERNAME }}
+          password: ${{ secrets.STEAM_PASSWORD }}
+          totp: ${{ steps.steam-totp.outputs.code }}
+          appId: ${{ env.STEAM_APP_ID }}
+          buildDescription: "v${{ steps.version.outputs.version }}"
+          rootPath: build
+          depot1Path: windows
+          depot2Path: linux
+          depot3Path: macos
+          releaseBranch: ${{ inputs.release_branch }}

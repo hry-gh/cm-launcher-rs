@@ -27,6 +27,9 @@
     }
   },
   "bundle": {
+    "resources": [
+      "resources/*"
+    ],
     "windows": {
       "allowDowngrades": true,
       "certificateThumbprint": null,

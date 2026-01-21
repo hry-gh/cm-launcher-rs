@@ -176,6 +176,7 @@ pub async fn connect_to_server(
     host: String,
     port: String,
     access_token: Option<String>,
+    server_name: String,
 ) -> Result<ConnectionResult, String> {
     let version_info = install_byond_version(app.clone(), version.clone()).await?;
 
@@ -192,10 +193,26 @@ pub async fn connect_to_server(
 
     #[cfg(target_os = "windows")]
     {
-        Command::new(&dreamseeker_path)
+        let child = Command::new(&dreamseeker_path)
             .arg(&connect_url)
             .spawn()
             .map_err(|e| format!("Failed to launch DreamSeeker: {}", e))?;
+
+        #[cfg(feature = "steam")]
+        {
+            if let Some(steam_state) = app.try_state::<Arc<crate::steam::SteamState>>() {
+                steam_state.start_game_session(
+                    server_name.clone(),
+                    "https://db.cm-ss13.com/api/Round".to_string(),
+                    child,
+                );
+            }
+        }
+
+        #[cfg(not(feature = "steam"))]
+        {
+            let _ = (child, server_name);
+        }
 
         Ok(ConnectionResult {
             success: true,
@@ -206,7 +223,7 @@ pub async fn connect_to_server(
     #[cfg(not(target_os = "windows"))]
     {
         // Suppress unused warnings
-        let _ = (dreamseeker_path, connect_url);
+        let _ = (dreamseeker_path, connect_url, server_name);
         Err("BYOND is only natively supported on Windows".to_string())
     }
 }

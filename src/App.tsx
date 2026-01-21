@@ -365,6 +365,7 @@ function ServerItem({
         host: relay.host,
         port: port,
         accessToken: accessToken,
+        serverName: server.name,
       });
     } catch (err) {
       showError(err instanceof Error ? err.message : String(err));

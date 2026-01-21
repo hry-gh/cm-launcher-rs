@@ -1,6 +1,7 @@
 mod auth;
 mod byond;
 mod settings;
+mod steam;
 mod webview2;
 
 use auth::{
@@ -28,7 +29,8 @@ pub fn run() {
         }
     }
 
-    tauri::Builder::default()
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -44,7 +46,30 @@ pub fn run() {
             get_access_token,
             get_settings,
             set_auth_mode,
-        ])
+        ]);
+
+    // Initialize Steam state if feature is enabled
+    #[cfg(feature = "steam")]
+    {
+        use std::sync::Arc;
+
+        match steam::SteamState::init() {
+            Ok(steam_state) => {
+                let steam_state = Arc::new(steam_state);
+
+                steam::presence::set_launcher_status(steam_state.client());
+
+                steam::state::start_steam_background_task(Arc::clone(&steam_state));
+
+                builder = builder.manage(steam_state);
+            }
+            Err(e) => {
+                eprintln!("Failed to initialize Steam: {:?}", e);
+            }
+        }
+    }
+
+    builder
         .setup(|app| {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {

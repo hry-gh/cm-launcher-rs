@@ -1,0 +1,11 @@
+"lang"
+{
+	"english"
+	{
+		"tokens"
+		{
+			"#Status_Launcher"	"In the Launcher"
+			"#Status_Playing" "Playing on %name%: %players% online"
+		}
+	}
+}
