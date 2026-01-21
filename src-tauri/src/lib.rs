@@ -1,6 +1,7 @@
 mod auth;
 mod byond;
 mod settings;
+mod webview2;
 
 use auth::{
     background_refresh_task, get_access_token, get_auth_state, logout, refresh_auth, start_login,
@@ -18,6 +19,15 @@ fn greet(name: &str) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "windows")]
+    {
+        if !webview2::check_webview2_installed() {
+            webview2::show_webview2_error();
+            let _ = open::that("https://go.microsoft.com/fwlink/p/?LinkId=2124703");
+            std::process::exit(1);
+        }
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
