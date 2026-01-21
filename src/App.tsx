@@ -210,7 +210,7 @@ function SteamAuthModal({
                 className="button-secondary"
                 onClick={() => onAuthenticate(true)}
               >
-                No, create new account
+                No, start now
               </button>
             </div>
           </>
