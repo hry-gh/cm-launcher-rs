@@ -233,4 +233,4 @@ jobs:
           depot1Path: windows
           depot2Path: linux
           depot3Path: macos
-          releaseBranch: dev
+          releaseBranch: latest
