@@ -637,7 +637,6 @@ function App() {
   const [steamAuthError, setSteamAuthError] = useState<string | undefined>();
   const [steamLinkingUrl, setSteamLinkingUrl] = useState<string | undefined>();
 
-  // Auto-connect state (from Steam launch options)
   const [pendingAutoConnect, setPendingAutoConnect] = useState<string | null>(
     null,
   );
@@ -717,8 +716,9 @@ function App() {
       // Check for Steam launch options (e.g., when joining via Steam friend)
       if (steamAvailable) {
         try {
-          const launchOptions =
-            await invoke<SteamLaunchOptions>("get_steam_launch_options");
+          const launchOptions = await invoke<SteamLaunchOptions>(
+            "get_steam_launch_options",
+          );
           if (launchOptions.server_name) {
             console.log(
               "Steam launch options detected, will auto-connect to:",
@@ -800,19 +800,15 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-connect effect: triggers when we have pending auto-connect and all data is ready
   useEffect(() => {
     const performAutoConnect = async () => {
       if (!pendingAutoConnect || autoConnecting) return;
 
-      // Wait for servers to be loaded
       if (servers.length === 0 || loading) return;
 
-      // Wait for relays to be checked (at least one with a ping)
       const readyRelay = relays.find((r) => !r.checking && r.ping !== null);
       if (!readyRelay) return;
 
-      // Find matching server by name (case-insensitive)
       const server = servers.find(
         (s) => s.name.toLowerCase() === pendingAutoConnect.toLowerCase(),
       );
@@ -845,14 +841,14 @@ function App() {
         return;
       }
 
-      console.log(`Auto-connecting to ${server.name} via ${readyRelay.name}...`);
+      console.log(
+        `Auto-connecting to ${server.name} via ${readyRelay.name}...`,
+      );
       setAutoConnecting(true);
       setPendingAutoConnect(null);
 
       try {
-        // For Steam auth mode, we need to authenticate first
         if (authMode === "steam" && !steamAuthState.access_token) {
-          // Trigger Steam authentication
           const result = await invoke<SteamAuthResult>("steam_authenticate", {
             createAccountIfMissing: false,
           });
@@ -869,13 +865,11 @@ function App() {
             throw new Error(result.error || "Steam authentication failed");
           }
 
-          // Update Steam auth state with the token
           setSteamAuthState((prev) => ({
             ...prev,
             access_token: result.access_token,
           }));
 
-          // Connect with the new token
           await invoke("connect_to_server", {
             version: byondVersion,
             host: readyRelay.host,
@@ -886,7 +880,6 @@ function App() {
           });
         } else if (authMode === "cm_ss13") {
           if (!authState.logged_in) {
-            // Need to login first - show modal
             setShowAuthModal(true);
             setAuthModalState("idle");
             setAutoConnecting(false);
@@ -903,7 +896,6 @@ function App() {
             serverName: server.name,
           });
         } else {
-          // BYOND auth - no token needed
           await invoke("connect_to_server", {
             version: byondVersion,
             host: readyRelay.host,
