@@ -14,13 +14,19 @@ inputs:
   steam_password:
     description: "Steam password"
     required: true
-  steam_totp:
-    description: "Steam TOTP code"
+  steam_shared_secret:
+    description: "Steam shared secret for TOTP generation"
     required: true
 
 runs:
   using: "composite"
   steps:
+    - name: Generate Steam TOTP
+      id: steam-totp
+      uses: andriivitiv/steam-totp@v1
+      with:
+        shared_secret: ${{ inputs.steam_shared_secret }}
+
     - name: Download Windows build
       uses: actions/download-artifact@v4
       with:
@@ -51,7 +57,7 @@ runs:
       with:
         username: ${{ inputs.steam_username }}
         password: ${{ inputs.steam_password }}
-        totp: ${{ inputs.steam_totp }}
+        totp: ${{ steps.steam-totp.outputs.code }}
         appId: ${{ inputs.steam_app_id }}
         buildDescription: "v${{ steps.version.outputs.version }}"
         rootPath: build
