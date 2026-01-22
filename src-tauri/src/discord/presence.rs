@@ -4,21 +4,29 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use discord_sdk::{
-    Discord, Subscriptions, activity::{ActivityBuilder, Assets, Button}, registration::{Application, LaunchCommand}, wheel::{UserState, Wheel}
+    activity::{ActivityBuilder, Assets, Button},
+    registration::{Application, LaunchCommand},
+    wheel::{UserState, Wheel},
+    Discord, Subscriptions,
 };
 use tokio::sync::{mpsc, watch};
 
-use crate::{
-    presence::{PresenceProvider, PresenceState},
-    steam::get_steam_app_id,
-};
+use crate::presence::{PresenceProvider, PresenceState};
 
 /// Discord Application ID for CM Launcher
 const DISCORD_APP_ID: i64 = 1383904378154651768;
 
+#[cfg(feature = "steam")]
 /// Steam URL to launch the game
 fn steam_launch_url() -> String {
+    use crate::steam::get_steam_app_id;
+
     format!("steam://run/{}", get_steam_app_id())
+}
+
+#[cfg(not(feature = "steam"))]
+fn steam_launch_url() -> String {
+    String::new()
 }
 
 /// Timeout for waiting for Discord handshake
@@ -52,14 +60,17 @@ impl DiscordState {
         // Spawn background task to manage Discord connection
         tokio::spawn(Self::run_discord_task(update_rx, connected_tx));
 
-        Ok(Self { update_tx, connected_rx })
+        Ok(Self {
+            update_tx,
+            connected_rx,
+        })
     }
 
     /// Wait for Discord to be connected, with a timeout
     /// Returns true if connected, false if timeout or connection failed
     pub async fn wait_for_connection(&self, timeout: Duration) -> bool {
         let mut rx = self.connected_rx.clone();
-        
+
         // Check if already connected
         if *rx.borrow() {
             return true;
@@ -76,7 +87,9 @@ impl DiscordState {
                     return true;
                 }
             }
-        }).await {
+        })
+        .await
+        {
             Ok(connected) => connected,
             Err(_) => {
                 tracing::warn!("Timed out waiting for Discord connection");
@@ -178,21 +191,29 @@ impl DiscordState {
                             url: join_url,
                         });
 
-                    #[cfg(feature = "discord_invites")] {
+                    #[cfg(feature = "discord_invites")]
+                    {
                         use discord_sdk::activity::Secrets;
                         use serde_json::json;
 
-                        activity = activity.party(
-                            server_name,
-                            std::num::NonZeroU32::new(*player_count),
-                            std::num::NonZeroU32::new(300),
-                            discord_sdk::activity::PartyPrivacy::Public,
-                        )
-                        .secrets(Secrets {
-                            r#match: None,
-                            join:  Some(json!({"server_name": &server_name, "type": "join"}).to_string()),
-                            spectate: Some(json!({"server_name": &server_name, "type": "spectate"}).to_string()),
-                        })
+                        activity = activity
+                            .party(
+                                server_name,
+                                std::num::NonZeroU32::new(*player_count),
+                                std::num::NonZeroU32::new(300),
+                                discord_sdk::activity::PartyPrivacy::Public,
+                            )
+                            .secrets(Secrets {
+                                r#match: None,
+                                join: Some(
+                                    json!({"server_name": &server_name, "type": "join"})
+                                        .to_string(),
+                                ),
+                                spectate: Some(
+                                    json!({"server_name": &server_name, "type": "spectate"})
+                                        .to_string(),
+                                ),
+                            })
                     }
 
                     discord.update_activity(activity).await
