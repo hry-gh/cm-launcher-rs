@@ -10,7 +10,7 @@ use tokio::sync::{mpsc, watch};
 
 use crate::{
     presence::{PresenceProvider, PresenceState},
-    steam::STEAM_APP_ID,
+    steam::get_steam_app_id,
 };
 
 /// Discord Application ID for CM Launcher
@@ -18,7 +18,7 @@ const DISCORD_APP_ID: i64 = 1383904378154651768;
 
 /// Steam URL to launch the game
 fn steam_launch_url() -> String {
-    format!("steam://run/{}", STEAM_APP_ID)
+    format!("steam://run/{}", get_steam_app_id())
 }
 
 /// Timeout for waiting for Discord handshake
@@ -41,7 +41,7 @@ impl DiscordState {
         if let Err(e) = discord_sdk::registration::register_app(Application {
             id: DISCORD_APP_ID,
             name: Some("CM Launcher".to_string()),
-            command: LaunchCommand::Steam(STEAM_APP_ID),
+            command: LaunchCommand::Steam(get_steam_app_id()),
         }) {
             tracing::warn!("Failed to register Discord app: {:?}", e);
         }

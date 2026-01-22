@@ -94,9 +94,9 @@ pub fn run() {
     {
         use std::sync::Arc;
 
-        use crate::steam::STEAM_APP_ID;
+        use crate::steam::get_steam_app_id;
 
-        if steamworks::restart_app_if_necessary(steamworks::AppId(STEAM_APP_ID)) {
+        if steamworks::restart_app_if_necessary(steamworks::AppId(get_steam_app_id())) {
             std::process::exit(1);
         }
 

@@ -6,12 +6,18 @@ on:
       - "v*"
 
 env:
-  STEAM_APP_ID: ${{ vars.STEAM_APP_ID }}
   STEAMWORKS_SDK_COMMIT: "494c2d680b9e47bbc369496b57568f44ef2f6796"
 
 jobs:
   build-windows:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - variant: production
+            steam_app_id: "4313790"
+          - variant: playtest
+            steam_app_id: "4313850"
     steps:
       - uses: actions/checkout@v4
 
@@ -49,6 +55,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STEAM_APP_ID: ${{ matrix.steam_app_id }}
         with:
           args: --features steam --config src-tauri/tauri.steam.conf.json
 
@@ -62,12 +69,19 @@ jobs:
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
-          name: windows-build
+          name: windows-build-${{ matrix.variant }}
           path: steam-build/windows/
           retention-days: 1
 
   build-linux:
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        include:
+          - variant: production
+            steam_app_id: "4313790"
+          - variant: playtest
+            steam_app_id: "4313850"
     steps:
       - uses: actions/checkout@v4
 
@@ -111,6 +125,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPIMAGE_EXTRACT_AND_RUN: 1
           LD_LIBRARY_PATH: /usr/lib
+          STEAM_APP_ID: ${{ matrix.steam_app_id }}
         with:
           args: --features steam --config src-tauri/tauri.steam.conf.json
 
@@ -123,12 +138,19 @@ jobs:
       - name: Upload Linux build
         uses: actions/upload-artifact@v4
         with:
-          name: linux-build
+          name: linux-build-${{ matrix.variant }}
           path: steam-build/linux/
           retention-days: 1
 
   build-macos:
     runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - variant: production
+            steam_app_id: "4313790"
+          - variant: playtest
+            steam_app_id: "4313850"
     steps:
       - uses: actions/checkout@v4
 
@@ -165,6 +187,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STEAM_APP_ID: ${{ matrix.steam_app_id }}
         with:
           args: --features steam --target universal-apple-darwin --config src-tauri/tauri.steam.conf.json
 
@@ -181,32 +204,39 @@ jobs:
       - name: Upload macOS build
         uses: actions/upload-artifact@v4
         with:
-          name: macos-build
+          name: macos-build-${{ matrix.variant }}
           path: steam-build/macos/
           retention-days: 1
 
   deploy-steam:
     needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - variant: production
+            steam_app_id: "4313790"
+          - variant: playtest
+            steam_app_id: "4313850"
     steps:
       - uses: actions/checkout@v4
 
       - name: Download Windows build
         uses: actions/download-artifact@v4
         with:
-          name: windows-build
+          name: windows-build-${{ matrix.variant }}
           path: build/windows
 
       - name: Download Linux build
         uses: actions/download-artifact@v4
         with:
-          name: linux-build
+          name: linux-build-${{ matrix.variant }}
           path: build/linux
 
       - name: Download macOS build
         uses: actions/download-artifact@v4
         with:
-          name: macos-build
+          name: macos-build-${{ matrix.variant }}
           path: build/macos
 
       - name: Get version from Cargo.toml
@@ -227,7 +257,7 @@ jobs:
           username: ${{ secrets.STEAM_USERNAME }}
           password: ${{ secrets.STEAM_PASSWORD }}
           totp: ${{ steps.steam-totp.outputs.code }}
-          appId: ${{ env.STEAM_APP_ID }}
+          appId: ${{ matrix.steam_app_id }}
           buildDescription: "v${{ steps.version.outputs.version }}"
           rootPath: build
           depot1Path: windows
