@@ -9,3 +9,5 @@ pub use commands::{
 
 pub use presence::SteamPresence;
 pub use state::SteamState;
+
+pub const STEAM_APP_ID: u32 = 4313790;

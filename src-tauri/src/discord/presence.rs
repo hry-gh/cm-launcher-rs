@@ -11,16 +11,18 @@ use discord_sdk::{
 };
 use tokio::sync::mpsc;
 
-use crate::presence::{PresenceProvider, PresenceState};
+use crate::{
+    presence::{PresenceProvider, PresenceState},
+    steam::STEAM_APP_ID,
+};
 
 /// Discord Application ID for CM Launcher
 const DISCORD_APP_ID: i64 = 1383904378154651768;
 
-/// Steam App ID for CM Launcher
-const STEAM_APP_ID: u32 = 4313790;
-
 /// Steam URL to launch the game
-const STEAM_LAUNCH_URL: &str = "steam://run/4313790";
+fn steam_launch_url() -> String {
+    format!("steam://run/{}", STEAM_APP_ID)
+}
 
 /// Timeout for waiting for Discord handshake
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -109,7 +111,7 @@ impl DiscordState {
                         .assets(Assets::default().large("logo", Some::<&str>("CM Launcher")))
                         .button(Button {
                             label: "Play".to_string(),
-                            url: STEAM_LAUNCH_URL.to_string(),
+                            url: steam_launch_url(),
                         });
                     discord.update_activity(activity).await
                 }
@@ -120,7 +122,7 @@ impl DiscordState {
                     let encoded_server =
                         url::form_urlencoded::byte_serialize(server_name.as_bytes())
                             .collect::<String>();
-                    let join_url = format!("{}//{}", STEAM_LAUNCH_URL, encoded_server);
+                    let join_url = format!("{}//{}", steam_launch_url(), encoded_server);
 
                     let activity = ActivityBuilder::new()
                         .state(format!("Playing on {}", server_name))
