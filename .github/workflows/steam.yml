@@ -208,59 +208,32 @@ jobs:
           path: steam-build/macos/
           retention-days: 1
 
-  deploy-steam:
+  deploy-steam-production:
     needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - variant: production
-            steam_app_id: "4313790"
-          - variant: playtest
-            steam_app_id: "4313850"
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download Windows build
-        uses: actions/download-artifact@v4
+      - name: Deploy to Steam
+        uses: ./.github/actions/steam-deploy
         with:
-          name: windows-build-${{ matrix.variant }}
-          path: build/windows
+          variant: production
+          steam_app_id: "4313790"
+          steam_username: ${{ secrets.STEAM_USERNAME }}
+          steam_password: ${{ secrets.STEAM_PASSWORD }}
+          steam_shared_secret: ${{ secrets.STEAM_SHARED_SECRET }}
 
-      - name: Download Linux build
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-build-${{ matrix.variant }}
-          path: build/linux
-
-      - name: Download macOS build
-        uses: actions/download-artifact@v4
-        with:
-          name: macos-build-${{ matrix.variant }}
-          path: build/macos
-
-      - name: Get version from Cargo.toml
-        id: version
-        run: |
-          VERSION=$(grep -m1 'version' src-tauri/Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Generate Steam TOTP
-        id: steam-totp
-        uses: andriivitiv/steam-totp@v1
-        with:
-          shared_secret: ${{ secrets.STEAM_SHARED_SECRET }}
+  deploy-steam-playtest:
+    needs: [build-windows, build-linux, build-macos, deploy-steam-production]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Deploy to Steam
-        uses: game-ci/steam-deploy@v3
+        uses: ./.github/actions/steam-deploy
         with:
-          username: ${{ secrets.STEAM_USERNAME }}
-          password: ${{ secrets.STEAM_PASSWORD }}
-          totp: ${{ steps.steam-totp.outputs.code }}
-          appId: ${{ matrix.steam_app_id }}
-          buildDescription: "v${{ steps.version.outputs.version }}"
-          rootPath: build
-          depot1Path: windows
-          depot2Path: linux
-          depot3Path: macos
-          releaseBranch: latest
+          variant: playtest
+          steam_app_id: "4313850"
+          steam_username: ${{ secrets.STEAM_USERNAME }}
+          steam_password: ${{ secrets.STEAM_PASSWORD }}
+          steam_shared_secret: ${{ secrets.STEAM_SHARED_SECRET }}

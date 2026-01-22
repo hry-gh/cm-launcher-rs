@@ -1,0 +1,67 @@
+name: "Deploy to Steam"
+description: "Downloads build artifacts and deploys to Steam"
+
+inputs:
+  variant:
+    description: "Build variant (production or playtest)"
+    required: true
+  steam_app_id:
+    description: "Steam App ID to deploy to"
+    required: true
+  steam_username:
+    description: "Steam username"
+    required: true
+  steam_password:
+    description: "Steam password"
+    required: true
+  steam_shared_secret:
+    description: "Steam TOTP shared secret"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Download Windows build
+      uses: actions/download-artifact@v4
+      with:
+        name: windows-build-${{ inputs.variant }}
+        path: build/windows
+
+    - name: Download Linux build
+      uses: actions/download-artifact@v4
+      with:
+        name: linux-build-${{ inputs.variant }}
+        path: build/linux
+
+    - name: Download macOS build
+      uses: actions/download-artifact@v4
+      with:
+        name: macos-build-${{ inputs.variant }}
+        path: build/macos
+
+    - name: Get version from Cargo.toml
+      id: version
+      shell: bash
+      run: |
+        VERSION=$(grep -m1 'version' src-tauri/Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Generate Steam TOTP
+      id: steam-totp
+      uses: andriivitiv/steam-totp@v1
+      with:
+        shared_secret: ${{ inputs.steam_shared_secret }}
+
+    - name: Deploy to Steam
+      uses: game-ci/steam-deploy@v3
+      with:
+        username: ${{ inputs.steam_username }}
+        password: ${{ inputs.steam_password }}
+        totp: ${{ steps.steam-totp.outputs.code }}
+        appId: ${{ inputs.steam_app_id }}
+        buildDescription: "v${{ steps.version.outputs.version }}"
+        rootPath: build
+        depot1Path: windows
+        depot2Path: linux
+        depot3Path: macos
+        releaseBranch: latest
