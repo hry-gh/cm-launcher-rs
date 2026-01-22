@@ -35,3 +35,22 @@ A rewrite of the DreamMaker backed CMLauncher, using [Tauri](https://v2.tauri.ap
 ### CI/CD
 - Automatically deploys tagged versions to GitHub Releases and Steam
 - Steam releases are pushed to a `latest` branch for manual deployment to `default`.
+
+## Development
+
+Run the project with:
+```bash
+# both backend and frontend dev (with hotreloading)
+npm run tauri -- dev (-f steam) # to build with steam
+
+# production build (cargo will recompile in release)
+npm run tauri build
+```
+
+In order to run the Steam build in development, you will need to place a file named `steam_appid.txt` in src-tauri/ containing `4313790`. Otherwise, the app will immediately close and attempt to reopen via Steam.
+
+### Releasing
+
+Use `tools/release.sh [semver]` to change the version in `Cargo.toml`, create a commit changing the version, and tag that commit with the semver. When this is pushed, GitHub Actions will push new builds to both GitHub Releases and Steam.
+
+Manually download the `.msi` and `.exe` and upload these to [Microsoft](https://www.microsoft.com/en-us/wdsi/filesubmission) to /try/ and avoid SmartScreen when installed via GitHub Releases.
