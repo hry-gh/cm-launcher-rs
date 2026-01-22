@@ -62,6 +62,7 @@ pub async fn get_steam_user_info(
 pub async fn get_steam_auth_ticket(
     steam_state: State<'_, Arc<SteamState>>,
 ) -> Result<String, String> {
+    tracing::debug!("Generating Steam auth ticket");
     let ticket_bytes = steam_state.get_auth_session_ticket()?;
     Ok(hex::encode(ticket_bytes))
 }
@@ -70,6 +71,7 @@ pub async fn get_steam_auth_ticket(
 pub async fn cancel_steam_auth_ticket(
     steam_state: State<'_, Arc<SteamState>>,
 ) -> Result<(), String> {
+    tracing::debug!("Cancelling Steam auth ticket");
     steam_state.cancel_auth_ticket();
     Ok(())
 }
@@ -79,6 +81,7 @@ pub async fn steam_authenticate(
     steam_state: State<'_, Arc<SteamState>>,
     create_account_if_missing: bool,
 ) -> Result<SteamAuthResult, String> {
+    tracing::info!("Starting Steam authentication");
     let steam_id = steam_state.get_steam_id().to_string();
     let display_name = steam_state.get_display_name();
 
@@ -118,8 +121,8 @@ pub async fn steam_authenticate(
         steam_state.cancel_auth_ticket();
     }
 
-    if let Some(token) = &auth_response.access_token {
-        eprintln!("{}", token);
+    if let Some(_token) = &auth_response.access_token {
+        tracing::debug!("Received access token from Steam auth");
     }
 
     Ok(SteamAuthResult {

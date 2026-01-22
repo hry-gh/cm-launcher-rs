@@ -99,6 +99,8 @@ impl TokenStorage {
         let path = Self::get_auth_file_path()?;
         fs::write(&path, &encrypted).map_err(|e| format!("Failed to write auth file: {}", e))?;
 
+        tracing::debug!("Tokens stored securely");
+
         Ok(())
     }
 
@@ -131,6 +133,7 @@ impl TokenStorage {
 
         if path.exists() {
             fs::remove_file(&path).map_err(|e| format!("Failed to delete auth file: {}", e))?;
+            tracing::debug!("Tokens cleared");
         }
 
         Ok(())

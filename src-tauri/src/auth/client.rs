@@ -42,6 +42,7 @@ pub struct OidcClient;
 
 impl OidcClient {
     pub async fn new() -> Result<Self, String> {
+        tracing::debug!("Initializing OidcClient");
         Ok(Self)
     }
 
@@ -49,6 +50,7 @@ impl OidcClient {
         &self,
         redirect_uri: &str,
     ) -> Result<AuthorizationRequest, String> {
+        tracing::debug!("Creating authorization request with redirect_uri: {}", redirect_uri);
         let auth_url =
             AuthUrl::new(AUTH_URL.to_string()).map_err(|e| format!("Invalid auth URL: {}", e))?;
         let token_url = TokenUrl::new(TOKEN_URL.to_string())
@@ -85,6 +87,7 @@ impl OidcClient {
         redirect_uri: &str,
         pkce_verifier: PkceCodeVerifier,
     ) -> Result<TokenResult, String> {
+        tracing::debug!("Exchanging authorization code for tokens");
         let auth_url =
             AuthUrl::new(AUTH_URL.to_string()).map_err(|e| format!("Invalid auth URL: {}", e))?;
         let token_url = TokenUrl::new(TOKEN_URL.to_string())
@@ -126,6 +129,7 @@ impl OidcClient {
     }
 
     pub async fn refresh_tokens(&self, refresh_token: &str) -> Result<TokenResult, String> {
+        tracing::debug!("Refreshing tokens");
         let auth_url =
             AuthUrl::new(AUTH_URL.to_string()).map_err(|e| format!("Invalid auth URL: {}", e))?;
         let token_url = TokenUrl::new(TOKEN_URL.to_string())
@@ -164,6 +168,7 @@ impl OidcClient {
     }
 
     pub async fn get_userinfo(&self, access_token: &str) -> Result<UserInfo, String> {
+        tracing::debug!("Fetching user info");
         let client = reqwest::Client::new();
         let response = client
             .get(USERINFO_URL)

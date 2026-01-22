@@ -56,6 +56,7 @@ pub async fn check_byond_version(
     app: AppHandle,
     version: String,
 ) -> Result<ByondVersionInfo, String> {
+    tracing::debug!("Checking BYOND version: {}", version);
     let dreamseeker_path = get_dreamseeker_path(&app, &version)?;
     let installed = dreamseeker_path.exists();
 
@@ -93,9 +94,11 @@ pub async fn install_byond_version(
 ) -> Result<ByondVersionInfo, String> {
     let existing = check_byond_version(app.clone(), version.clone()).await?;
     if existing.installed {
+        tracing::debug!("BYOND version {} already installed", version);
         return Ok(existing);
     }
 
+    tracing::info!("Installing BYOND version: {}", version);
     let download_url = get_byond_download_url(&version)?;
     let version_dir = get_byond_version_dir(&app, &version)?;
 
@@ -164,6 +167,8 @@ pub async fn install_byond_version(
 
     fs::remove_file(&zip_path).ok();
 
+    tracing::info!("BYOND version {} installed successfully", version);
+
     check_byond_version(app, version).await
 }
 
@@ -178,10 +183,13 @@ pub async fn connect_to_server(
     access_token: Option<String>,
     server_name: String,
 ) -> Result<ConnectionResult, String> {
+    tracing::info!("Connecting to server {} (BYOND {})", server_name, version);
     let version_info = install_byond_version(app.clone(), version.clone()).await?;
 
     if !version_info.installed {
-        return Err(format!("Failed to install BYOND version {}", version));
+        let msg = format!("Failed to install BYOND version {}", version);
+        tracing::error!("{}", msg);
+        return Err(msg);
     }
 
     let dreamseeker_path = version_info.path.ok_or("DreamSeeker path not found")?;
@@ -277,6 +285,7 @@ pub async fn delete_byond_version(app: AppHandle, version: String) -> Result<boo
     let version_dir = get_byond_version_dir(&app, &version)?;
 
     if version_dir.exists() {
+        tracing::info!("Deleting BYOND version: {}", version);
         fs::remove_dir_all(&version_dir)
             .map_err(|e| format!("Failed to delete BYOND version: {}", e))?;
         Ok(true)

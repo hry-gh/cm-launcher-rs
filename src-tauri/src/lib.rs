@@ -1,6 +1,9 @@
 mod auth;
 mod byond;
+mod discord;
+mod presence;
 mod settings;
+#[cfg(feature = "steam")]
 mod steam;
 mod webview2;
 
@@ -26,6 +29,8 @@ fn greet(name: &str) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    tracing_subscriber::fmt::init();
+
     #[cfg(target_os = "windows")]
     {
         if !webview2::check_webview2_installed() {
@@ -36,8 +41,7 @@ pub fn run() {
     }
 
     #[allow(unused_mut)]
-    let mut builder = tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init());
+    let mut builder = tauri::Builder::default().plugin(tauri_plugin_opener::init());
 
     #[cfg(not(feature = "steam"))]
     {
@@ -82,7 +86,10 @@ pub fn run() {
         ]);
     }
 
-    // Initialize Steam state if feature is enabled
+    let mut manager = presence::PresenceManager::new();
+    #[allow(unused_mut)]
+    let mut steam_poll_callback: Option<Box<dyn Fn() + Send + Sync>> = None;
+
     #[cfg(feature = "steam")]
     {
         use std::sync::Arc;
@@ -95,17 +102,43 @@ pub fn run() {
             Ok(steam_state) => {
                 let steam_state = Arc::new(steam_state);
 
-                steam::presence::set_launcher_status(steam_state.client());
+                let steam_presence = steam::SteamPresence::new(steam_state.client().clone());
+                manager.add_provider(Box::new(steam_presence));
 
-                steam::state::start_steam_background_task(Arc::clone(&steam_state));
+                let steam_state_clone = Arc::clone(&steam_state);
+                steam_poll_callback = Some(Box::new(move || steam_state_clone.run_callbacks()));
 
                 builder = builder.manage(steam_state);
             }
             Err(e) => {
-                eprintln!("Failed to initialize Steam: {:?}", e);
+                tracing::error!("Failed to initialize Steam: {:?}", e);
             }
         }
     }
+
+    {
+        use std::sync::Arc;
+
+        match tauri::async_runtime::block_on(discord::DiscordState::init()) {
+            Ok(discord_state) => {
+                let discord_state = Arc::new(discord_state);
+                let discord_presence = discord::DiscordPresence::new(Arc::clone(&discord_state));
+                manager.add_provider(Box::new(discord_presence));
+            }
+            Err(e) => {
+                tracing::error!("Failed to initialize Discord: {:?}", e);
+            }
+        }
+    }
+
+    let presence_manager = std::sync::Arc::new(manager);
+
+    presence::start_presence_background_task(
+        std::sync::Arc::clone(&presence_manager),
+        steam_poll_callback,
+    );
+
+    builder = builder.manage(presence_manager);
 
     builder
         .setup(|app| {

@@ -1,28 +1,60 @@
 use steamworks::Client;
 
-pub fn set_playing_status(client: &Client, server_name: &str, player_count: u32) {
-    let friends = client.friends();
+use crate::presence::{PresenceProvider, PresenceState};
 
-    friends.set_rich_presence("status", Some(&format!("Playing on {}", server_name)));
-    friends.set_rich_presence("connect", Some(server_name));
-
-    friends.set_rich_presence("players", Some(&player_count.to_string()));
-    friends.set_rich_presence("name", Some(server_name));
-
-    friends.set_rich_presence("steam_display", Some("#Status_Playing"));
-    friends.set_rich_presence("steam_player_group", Some(server_name));
-    friends.set_rich_presence("steam_player_group_size", Some(&player_count.to_string()));
+/// Steam-specific presence provider
+pub struct SteamPresence {
+    client: Client,
 }
 
-pub fn set_launcher_status(client: &Client) {
-    clear_presence(client);
+impl SteamPresence {
+    pub fn new(client: Client) -> Self {
+        Self { client }
+    }
 
-    let friends = client.friends();
+    fn set_playing_status(&self, server_name: &str, player_count: u32) {
+        tracing::debug!("Setting Steam presence: Playing on {} ({} players)", server_name, player_count);
+        let friends = self.client.friends();
 
-    friends.set_rich_presence("status", Some("In the Launcher"));
-    friends.set_rich_presence("steam_display", Some("#Status_Launcher"));
+        friends.set_rich_presence("status", Some(&format!("Playing on {}", server_name)));
+        friends.set_rich_presence("connect", Some(server_name));
+
+        friends.set_rich_presence("players", Some(&player_count.to_string()));
+        friends.set_rich_presence("name", Some(server_name));
+
+        friends.set_rich_presence("steam_display", Some("#Status_Playing"));
+        friends.set_rich_presence("steam_player_group", Some(server_name));
+        friends.set_rich_presence("steam_player_group_size", Some(&player_count.to_string()));
+    }
+
+    fn set_launcher_status(&self) {
+        tracing::debug!("Setting Steam presence: In Launcher");
+        self.clear_presence();
+
+        let friends = self.client.friends();
+
+        friends.set_rich_presence("status", Some("In the Launcher"));
+        friends.set_rich_presence("steam_display", Some("#Status_Launcher"));
+    }
 }
 
-pub fn clear_presence(client: &Client) {
-    client.friends().clear_rich_presence();
+impl PresenceProvider for SteamPresence {
+    fn name(&self) -> &'static str {
+        "Steam"
+    }
+
+    fn update_presence(&self, state: &PresenceState) {
+        match state {
+            PresenceState::InLauncher => self.set_launcher_status(),
+            PresenceState::Playing {
+                server_name,
+                player_count,
+            } => self.set_playing_status(server_name, *player_count),
+            PresenceState::Disconnected => self.clear_presence(),
+        }
+    }
+
+    fn clear_presence(&self) {
+        self.client.friends().clear_rich_presence();
+    }
 }

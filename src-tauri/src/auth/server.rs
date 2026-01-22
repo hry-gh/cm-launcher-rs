@@ -138,6 +138,8 @@ impl CallbackServer {
             let url = Url::parse(&full_url)
                 .map_err(|e| format!("Failed to parse callback URL: {}", e))?;
 
+            tracing::debug!("Callback server received request: {}", url.path());
+
             if url.path() != "/callback" {
                 let response = Response::from_string("Not Found").with_status_code(404);
                 request.respond(response).ok();

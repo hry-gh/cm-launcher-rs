@@ -48,6 +48,7 @@ impl AuthState {
 /// Start the login flow - opens browser, waits for callback
 #[tauri::command]
 pub async fn start_login(app: AppHandle) -> Result<AuthState, String> {
+    tracing::info!("Starting login flow");
     let oidc_client = OidcClient::new().await?;
 
     let mut server = CallbackServer::start_without_state()?;
@@ -62,6 +63,8 @@ pub async fn start_login(app: AppHandle) -> Result<AuthState, String> {
     let callback_result = tokio::task::spawn_blocking(move || server.wait_for_callback())
         .await
         .map_err(|e| format!("Callback task failed: {}", e))??;
+
+    tracing::info!("Callback received, exchanging code");
 
     let token_result = oidc_client
         .exchange_code(
@@ -90,6 +93,7 @@ pub async fn start_login(app: AppHandle) -> Result<AuthState, String> {
 /// Clear local tokens and log out
 #[tauri::command]
 pub async fn logout(app: AppHandle) -> Result<AuthState, String> {
+    tracing::info!("Logging out");
     TokenStorage::clear_tokens()?;
 
     let auth_state = AuthState::logged_out();
@@ -138,6 +142,7 @@ pub async fn get_auth_state() -> Result<AuthState, String> {
 /// Manually trigger token refresh
 #[tauri::command]
 pub async fn refresh_auth(app: AppHandle) -> Result<AuthState, String> {
+    tracing::info!("Manually refreshing auth");
     let tokens = match TokenStorage::get_tokens()? {
         Some(t) => t,
         None => return Ok(AuthState::logged_out()),
@@ -184,14 +189,16 @@ pub async fn background_refresh_task(app: AppHandle) {
     loop {
         if TokenStorage::should_refresh() {
             if let Ok(Some(tokens)) = TokenStorage::get_tokens() {
-                dbg!("{}", &tokens);
+                // dbg!("{}", &tokens);
 
                 if let Some(refresh_token) = &tokens.refresh_token {
+                    tracing::info!("Background refreshing tokens");
                     match refresh_tokens_internal(refresh_token).await {
                         Ok(auth_state) => {
                             app.emit("auth-state-changed", &auth_state).ok();
                         }
-                        Err(_e) => {
+                        Err(e) => {
+                            tracing::warn!("Background refresh failed: {}", e);
                             TokenStorage::clear_tokens().ok();
                             app.emit("auth-state-changed", &AuthState::logged_out())
                                 .ok();

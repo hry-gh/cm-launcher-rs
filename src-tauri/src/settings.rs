@@ -40,6 +40,7 @@ fn get_settings_path(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 pub fn load_settings(app: &AppHandle) -> Result<AppSettings, String> {
+    tracing::debug!("Loading settings");
     let path = get_settings_path(app)?;
 
     if !path.exists() {
@@ -53,6 +54,7 @@ pub fn load_settings(app: &AppHandle) -> Result<AppSettings, String> {
 }
 
 pub fn save_settings(app: &AppHandle, settings: &AppSettings) -> Result<(), String> {
+    tracing::debug!("Saving settings");
     let path = get_settings_path(app)?;
 
     let contents = serde_json::to_string_pretty(settings)
