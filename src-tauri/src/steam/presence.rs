@@ -13,11 +13,18 @@ impl SteamPresence {
     }
 
     fn set_playing_status(&self, server_name: &str, player_count: u32) {
-        tracing::debug!("Setting Steam presence: Playing on {} ({} players)", server_name, player_count);
+        tracing::debug!(
+            "Setting Steam presence: Playing on {} ({} players)",
+            server_name,
+            player_count
+        );
         let friends = self.client.friends();
 
         friends.set_rich_presence("status", Some(&format!("Playing on {}", server_name)));
-        friends.set_rich_presence("connect", Some(server_name));
+
+        let encoded_server =
+            url::form_urlencoded::byte_serialize(server_name.as_bytes()).collect::<String>();
+        friends.set_rich_presence("connect", Some(&encoded_server));
 
         friends.set_rich_presence("players", Some(&player_count.to_string()));
         friends.set_rich_presence("name", Some(server_name));

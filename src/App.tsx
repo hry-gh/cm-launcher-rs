@@ -1,27 +1,27 @@
-import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useState } from "react";
 import "./App.css";
 
-import type { SteamLaunchOptions, SteamAuthResult } from "./types";
+import {
+  AccountInfo,
+  AuthModal,
+  ErrorNotifications,
+  RelayDropdown,
+  ServerItem,
+  SettingsModal,
+  SteamAuthModal,
+  Titlebar,
+} from "./components";
 import {
   ErrorProvider,
-  useError,
   useAuth,
-  useSteamAuth,
+  useError,
   useRelays,
   useServers,
   useSettings,
+  useSteamAuth,
 } from "./hooks";
-import {
-  Titlebar,
-  ErrorNotifications,
-  AuthModal,
-  SteamAuthModal,
-  SettingsModal,
-  ServerItem,
-  AccountInfo,
-  RelayDropdown,
-} from "./components";
+import type { SteamAuthResult, SteamLaunchOptions } from "./types";
 
 function AppContent() {
   const { errors, dismissError, showError } = useError();
@@ -85,7 +85,6 @@ function AppContent() {
         setAuthMode("cm_ss13");
       }
 
-      // Check for Steam launch options (e.g., when joining via Steam friend)
       if (steamAvailable) {
         try {
           const launchOptions = await invoke<SteamLaunchOptions>(

@@ -140,6 +140,13 @@ fn parse_server_name(command_line: &str) -> Option<String> {
     if trimmed.is_empty() {
         return None;
     }
+    let decoded = trimmed.replace('+', " ");
+    let decoded = percent_encoding::percent_decode_str(&decoded)
+        .decode_utf8_lossy()
+        .to_string();
+    if decoded.is_empty() {
+        return None;
+    }
     Some(trimmed.to_string())
 }
 
