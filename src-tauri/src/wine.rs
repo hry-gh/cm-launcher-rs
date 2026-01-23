@@ -26,6 +26,7 @@ const INIT_VERSION: u32 = 1;
 
 /// Winetricks verbs to install, in order
 const WINETRICKS_VERBS: &[(&str, &str)] = &[
+    ("mono", "Wine Mono (.NET runtime)"),
     ("vcrun2022", "Visual C++ 2022 runtime"),
     ("dxtrans", "DirectX Transform libraries"),
     ("corefonts", "Microsoft core fonts"),
@@ -62,6 +63,7 @@ impl Default for WineStatus {
 pub enum WineSetupStage {
     Checking,
     CreatingPrefix,
+    InstallingMono,
     InstallingVcrun2022,
     InstallingDxtrans,
     InstallingCorefonts,
@@ -296,7 +298,10 @@ fn run_winetricks(prefix: &Path, verb: &str) -> Result<(), WineError> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(WineError::WinetricksFailed(verb.to_string(), stderr.to_string()));
+        return Err(WineError::WinetricksFailed(
+            verb.to_string(),
+            stderr.to_string(),
+        ));
     }
 
     Ok(())
@@ -316,16 +321,7 @@ fn set_registry_key(
     let full_path = format!("{}\\{}", path, key);
     let output = Command::new(&wine_path)
         .args([
-            "reg",
-            "add",
-            path,
-            "/v",
-            key,
-            "/t",
-            reg_type,
-            "/d",
-            value,
-            "/f",
+            "reg", "add", path, "/v", key, "/t", reg_type, "/d", value, "/f",
         ])
         .env("WINEPREFIX", prefix)
         .stdout(Stdio::piped())
@@ -398,8 +394,9 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
     // Wait for wineboot to complete
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
-    // Step 2-5: Install winetricks verbs
+    // Step 2-6: Install winetricks verbs
     let verb_stages = [
+        WineSetupStage::InstallingMono,
         WineSetupStage::InstallingVcrun2022,
         WineSetupStage::InstallingDxtrans,
         WineSetupStage::InstallingCorefonts,
@@ -407,7 +404,7 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
     ];
 
     for (i, (verb, description)) in WINETRICKS_VERBS.iter().enumerate() {
-        let progress = 15 + (i as u8 * 12); // 15, 27, 39, 51
+        let progress = 10 + (i as u8 * 10); // 10, 20, 30, 40, 50
         emit_progress(
             app,
             verb_stages[i].clone(),
@@ -418,11 +415,11 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
         run_winetricks(&prefix, verb)?;
     }
 
-    // Step 6: Set registry key for WebView2 compatibility
+    // Step 7: Set registry key for WebView2 compatibility
     emit_progress(
         app,
         WineSetupStage::SettingRegistry,
-        65,
+        60,
         "Configuring WebView2 compatibility...",
     );
 

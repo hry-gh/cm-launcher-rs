@@ -15,6 +15,7 @@ function getStageDisplayName(stage: string): string {
   const stageNames: Record<string, string> = {
     checking: "Checking",
     creating_prefix: "Creating Wine prefix",
+    installing_mono: "Installing Wine Mono",
     installing_vcrun2022: "Installing Visual C++ 2022",
     installing_dxtrans: "Installing DirectX Transform",
     installing_corefonts: "Installing core fonts",
@@ -62,31 +63,33 @@ function WineNotInstalledContent({
         <>
           <p>Winetricks is required for initial setup.</p>
           <div className="wine-install-instructions compact">
-            <code><strong>Ubuntu/Debian:</strong> sudo apt install winetricks</code>
-            <code><strong>Fedora:</strong> sudo dnf install winetricks</code>
-            <code><strong>Arch:</strong> sudo pacman -S winetricks</code>
+            <code>
+              <strong>Ubuntu/Debian:</strong> sudo apt install winetricks
+            </code>
+            <code>
+              <strong>Fedora:</strong> sudo dnf install winetricks
+            </code>
+            <code>
+              <strong>Arch:</strong> sudo pacman -S winetricks
+            </code>
           </div>
         </>
       ) : (
         <>
           <p>Wine 10.5+ is required to run BYOND on Linux.</p>
           <div className="wine-install-instructions compact">
-            <code><strong>Ubuntu/Debian:</strong> sudo apt install wine winetricks</code>
-            <code><strong>Fedora:</strong> sudo dnf install wine winetricks</code>
-            <code><strong>Arch:</strong> sudo pacman -S wine winetricks</code>
+            <code>
+              <strong>Ubuntu/Debian:</strong> sudo apt install wine winetricks
+            </code>
+            <code>
+              <strong>Fedora:</strong> sudo dnf install wine winetricks
+            </code>
+            <code>
+              <strong>Arch:</strong> sudo pacman -S wine winetricks
+            </code>
           </div>
         </>
       )}
-      <p className="wine-help-link">
-        For help, see:{" "}
-        <a
-          href="https://github.com/kinggoldcatter/Wine-Byond-help"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Wine-Byond-help
-        </a>
-      </p>
       <div className="wine-modal-actions">
         <button type="button" className="button" onClick={onRetry}>
           Retry
@@ -131,19 +134,10 @@ function SetupRequiredContent({ onSetup }: { onSetup: () => void }) {
   return (
     <ModalContent title="Wine Setup Required">
       <p>
-        BYOND requires Wine to run on Linux. The launcher will now set up a Wine
-        environment with the necessary dependencies.
+        BYOND requires a Wine environment with VC++ runtime, DirectX, fonts, and WebView2.
       </p>
-      <p>This includes:</p>
-      <ul className="wine-setup-list">
-        <li>Visual C++ 2022 runtime</li>
-        <li>DirectX libraries</li>
-        <li>Core fonts</li>
-        <li>DXVK (Vulkan-based DirectX)</li>
-        <li>Microsoft Edge WebView2</li>
-      </ul>
       <p className="wine-setup-note">
-        This is a one-time setup that may take 5-10 minutes.
+        One-time setup, may take 5-10 minutes.
       </p>
       <div className="wine-modal-actions">
         <button type="button" className="button" onClick={onSetup}>
