@@ -50,7 +50,7 @@ export function GameConnectionModal({
       ? `Connecting to ${serverName}...`
       : `Connected to ${serverName}`;
 
-  const progressPercent = (timeRemaining / CONNECTION_TIMEOUT_SECONDS) * 100;
+  const progressPercent = ((CONNECTION_TIMEOUT_SECONDS - timeRemaining) / CONNECTION_TIMEOUT_SECONDS) * 100;
 
   return (
     <div className="game-connection-overlay">
