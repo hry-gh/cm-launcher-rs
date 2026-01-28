@@ -172,16 +172,17 @@ pub fn run() {
 
     let presence_manager = std::sync::Arc::new(manager);
 
-    presence::start_presence_background_task(
-        std::sync::Arc::clone(&presence_manager),
-        steam_poll_callback,
-    );
-
     builder = builder.manage(std::sync::Arc::clone(&presence_manager));
 
     builder
         .setup(move |app| {
             let handle = app.handle().clone();
+
+            presence::start_presence_background_task(
+                std::sync::Arc::clone(&presence_manager),
+                steam_poll_callback,
+                handle.clone(),
+            );
 
             match control_server::ControlServer::start(
                 handle.clone(),

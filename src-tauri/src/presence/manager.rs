@@ -167,7 +167,10 @@ impl Default for PresenceManager {
 pub fn start_presence_background_task(
     presence_manager: Arc<PresenceManager>,
     poll_callback: Option<Box<dyn Fn() + Send + Sync>>,
+    app_handle: tauri::AppHandle,
 ) {
+    use tauri::Emitter;
+
     tauri::async_runtime::spawn(async move {
         let poll_interval = Duration::from_millis(100);
         let mut last_player_count: Option<u32> = None;
@@ -201,6 +204,7 @@ pub fn start_presence_background_task(
             } else if last_player_count.is_some() {
                 last_player_count = None;
                 presence_manager.update_all_presence(&PresenceState::InLauncher);
+                app_handle.emit("game-closed", ()).ok();
             }
 
             tokio::time::sleep(poll_interval).await;

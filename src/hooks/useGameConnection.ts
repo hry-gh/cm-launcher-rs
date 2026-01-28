@@ -20,9 +20,15 @@ export function useGameConnection() {
       setConnectedServerName(event.payload);
     });
 
+    const unlistenClosed = listen("game-closed", () => {
+      setGameConnectionState("idle");
+      setConnectedServerName(null);
+    });
+
     return () => {
       unlistenConnecting.then((unlisten) => unlisten());
       unlistenConnected.then((unlisten) => unlisten());
+      unlistenClosed.then((unlisten) => unlisten());
     };
   }, []);
 
