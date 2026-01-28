@@ -1,7 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export type GameConnectionState = "idle" | "connecting" | "connected";
+
+const CONNECTION_TIMEOUT_SECONDS = 30;
 
 interface GameConnectionModalProps {
   visible: boolean;
@@ -17,6 +19,17 @@ export function GameConnectionModal({
   onClose,
 }: GameConnectionModalProps) {
   const [closing, setClosing] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(CONNECTION_TIMEOUT_SECONDS);
+
+  useEffect(() => {
+    if (state === "connecting") {
+      setTimeRemaining(CONNECTION_TIMEOUT_SECONDS);
+      const interval = setInterval(() => {
+        setTimeRemaining((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [state]);
 
   if (!visible) return null;
 
@@ -37,12 +50,22 @@ export function GameConnectionModal({
       ? `Connecting to ${serverName}...`
       : `Connected to ${serverName}`;
 
+  const progressPercent = (timeRemaining / CONNECTION_TIMEOUT_SECONDS) * 100;
+
   return (
     <div className="game-connection-overlay">
       <div className="game-connection-modal">
         <div className="game-connection-status">
           {state === "connecting" && <div className="game-connection-spinner" />}
           <h2>{statusText}</h2>
+          {state === "connecting" && (
+            <div className="game-connection-progress">
+              <div
+                className="game-connection-progress-bar"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          )}
         </div>
         <button
           type="button"
