@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback } from "react";
-import type { AuthMode } from "../types";
+import { useAppStore } from "../stores";
 
 interface ConnectParams {
   version: string;
@@ -9,10 +9,10 @@ interface ConnectParams {
   serverName: string;
 }
 
-export function useConnectToServer(
-  authMode: AuthMode,
-  steamAccessToken: string | null
-) {
+export function useConnect() {
+  const authMode = useAppStore((s) => s.authMode);
+  const steamAccessToken = useAppStore((s) => s.steamAuthState.access_token);
+
   const connect = useCallback(
     async (params: ConnectParams) => {
       let accessToken: string | null = null;

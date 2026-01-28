@@ -1,25 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useState } from "react";
 import type { SteamAuthModalState } from "../components/SteamAuthModal";
-import type { SteamAuthResult, SteamAuthState, SteamUserInfo } from "../types";
-
-const initialSteamAuthState: SteamAuthState = {
-  available: false,
-  user: null,
-  access_token: null,
-  loading: false,
-  error: null,
-};
+import { useAppStore } from "../stores";
+import type { SteamAuthResult, SteamUserInfo } from "../types";
 
 export function useSteamAuth() {
-  const [steamAuthState, setSteamAuthState] = useState<SteamAuthState>(
-    initialSteamAuthState,
-  );
   const [showSteamAuthModal, setShowSteamAuthModal] = useState(false);
   const [steamAuthModalState, setSteamAuthModalState] =
     useState<SteamAuthModalState>("idle");
   const [steamAuthError, setSteamAuthError] = useState<string | undefined>();
   const [steamLinkingUrl, setSteamLinkingUrl] = useState<string | undefined>();
+
+  const setSteamAuthState = useAppStore((s) => s.setSteamAuthState);
 
   const initializeSteam = useCallback(async () => {
     try {
@@ -37,7 +29,7 @@ export function useSteamAuth() {
       }));
       return false;
     }
-  }, []);
+  }, [setSteamAuthState]);
 
   const handleSteamAuthenticate = useCallback(
     async (createAccountIfMissing: boolean) => {
@@ -74,16 +66,7 @@ export function useSteamAuth() {
         return null;
       }
     },
-    [],
-  );
-
-  const onSteamAuthRequired = useCallback(
-    (serverName?: string) => {
-      setShowSteamAuthModal(true);
-      handleSteamAuthenticate(false);
-      return serverName;
-    },
-    [handleSteamAuthenticate],
+    [setSteamAuthState]
   );
 
   const onSteamAuthModalClose = useCallback(async () => {
@@ -102,11 +85,9 @@ export function useSteamAuth() {
       ...prev,
       access_token: null,
     }));
-  }, []);
+  }, [setSteamAuthState]);
 
   return {
-    steamAuthState,
-    setSteamAuthState,
     showSteamAuthModal,
     setShowSteamAuthModal,
     steamAuthModalState,
@@ -114,7 +95,6 @@ export function useSteamAuth() {
     steamLinkingUrl,
     initializeSteam,
     handleSteamAuthenticate,
-    onSteamAuthRequired,
     onSteamAuthModalClose,
     handleSteamLogout,
   };

@@ -16,29 +16,39 @@ import {
 import {
   ErrorProvider,
   useAuth,
-  useConnectToServer,
+  useConnect,
   useError,
   useGameConnection,
-  useRelays,
-  useServers,
   useSettings,
   useSteamAuth,
 } from "./hooks";
+import {
+  initAuthListener,
+  initRelays,
+  initServerFetching,
+  useAppStore,
+} from "./stores";
 import type { SteamAuthResult, SteamLaunchOptions } from "./types";
 
 function AppContent() {
   const { errors, dismissError, showError } = useError();
-  const { servers, loading, error } = useServers();
-  const {
-    relays,
-    selectedRelay,
-    relayDropdownOpen,
-    handleRelaySelect,
-    toggleRelayDropdown,
-  } = useRelays();
+
+  // Store selectors
+  const servers = useAppStore((s) => s.servers);
+  const serversLoading = useAppStore((s) => s.serversLoading);
+  const serversError = useAppStore((s) => s.serversError);
+  const relays = useAppStore((s) => s.relays);
+  const selectedRelay = useAppStore((s) => s.selectedRelay);
+  const setSelectedRelay = useAppStore((s) => s.setSelectedRelay);
+  const authMode = useAppStore((s) => s.authMode);
+  const authState = useAppStore((s) => s.authState);
+  const steamAuthState = useAppStore((s) => s.steamAuthState);
+  const setSteamAuthState = useAppStore((s) => s.setSteamAuthState);
+
+  // Local UI state
+  const [relayDropdownOpen, setRelayDropdownOpen] = useState(false);
 
   const {
-    authState,
     showAuthModal,
     authModalState,
     authError,
@@ -48,8 +58,6 @@ function AppContent() {
   } = useAuth();
 
   const {
-    steamAuthState,
-    setSteamAuthState,
     showSteamAuthModal,
     setShowSteamAuthModal,
     steamAuthModalState,
@@ -62,7 +70,6 @@ function AppContent() {
   } = useSteamAuth();
 
   const {
-    authMode,
     setAuthMode,
     showSettingsModal,
     loadSettings,
@@ -78,13 +85,26 @@ function AppContent() {
     showGameConnectionModal,
   } = useGameConnection();
 
-  const { connect } = useConnectToServer(authMode, steamAuthState.access_token);
+  const { connect } = useConnect();
 
   const [pendingAutoConnect, setPendingAutoConnect] = useState<string | null>(
-    null,
+    null
   );
   const [autoConnecting, setAutoConnecting] = useState(false);
 
+  // Initialize store on mount
+  useEffect(() => {
+    const unlistenPromise = initAuthListener();
+    initRelays();
+    const cleanupServers = initServerFetching();
+
+    return () => {
+      unlistenPromise.then((unlisten) => unlisten());
+      cleanupServers();
+    };
+  }, []);
+
+  // Load initial settings and Steam
   useEffect(() => {
     const loadInitialState = async () => {
       const settings = await loadSettings();
@@ -101,12 +121,12 @@ function AppContent() {
       if (steamAvailable) {
         try {
           const launchOptions = await invoke<SteamLaunchOptions>(
-            "get_steam_launch_options",
+            "get_steam_launch_options"
           );
           if (launchOptions.server_name) {
             console.log(
               "Steam launch options detected, will auto-connect to:",
-              launchOptions.server_name,
+              launchOptions.server_name
             );
             setPendingAutoConnect(launchOptions.server_name);
           }
@@ -118,21 +138,22 @@ function AppContent() {
     loadInitialState();
   }, [loadSettings, initializeSteam, setAuthMode]);
 
+  // Auto-connect effect
   useEffect(() => {
     const performAutoConnect = async () => {
       if (!pendingAutoConnect || autoConnecting) return;
-      if (servers.length === 0 || loading) return;
+      if (servers.length === 0 || serversLoading) return;
 
       const readyRelay = relays.find((r) => !r.checking && r.ping !== null);
       if (!readyRelay) return;
 
       const server = servers.find(
-        (s) => s.name.toLowerCase() === pendingAutoConnect.toLowerCase(),
+        (s) => s.name.toLowerCase() === pendingAutoConnect.toLowerCase()
       );
 
       if (!server) {
         console.error(
-          `Auto-connect: Server "${pendingAutoConnect}" not found in server list`,
+          `Auto-connect: Server "${pendingAutoConnect}" not found in server list`
         );
         showError(`Server "${pendingAutoConnect}" not found`);
         setPendingAutoConnect(null);
@@ -141,7 +162,7 @@ function AppContent() {
 
       if (server.status !== "available") {
         console.error(
-          `Auto-connect: Server "${pendingAutoConnect}" is not available`,
+          `Auto-connect: Server "${pendingAutoConnect}" is not available`
         );
         showError(`Server "${pendingAutoConnect}" is currently unavailable`);
         setPendingAutoConnect(null);
@@ -159,27 +180,23 @@ function AppContent() {
       }
 
       console.log(
-        `Auto-connecting to ${server.name} via ${readyRelay.name}...`,
+        `Auto-connecting to ${server.name} via ${readyRelay.name}...`
       );
       setAutoConnecting(true);
       setPendingAutoConnect(null);
 
       try {
         if (authMode === "steam" && !steamAuthState.access_token) {
-          // If the Steam auth modal is already showing, let it handle authentication
-          // to avoid duplicate steam_authenticate calls
           if (showSteamAuthModal) {
             return;
           }
 
-          // No modal showing - authenticate ourselves (e.g., Steam launch auto-connect)
           const result = await invoke<SteamAuthResult>("steam_authenticate", {
             createAccountIfMissing: false,
           });
 
           if (!result.success || !result.access_token) {
             if (result.requires_linking) {
-              // Show the Steam auth modal to handle linking
               setShowSteamAuthModal(true);
               setSteamAuthState((prev) => ({ ...prev, loading: false }));
               return;
@@ -191,7 +208,6 @@ function AppContent() {
             ...prev,
             access_token: result.access_token,
           }));
-          // Return and let the next effect iteration connect with the token
           return;
         }
 
@@ -217,7 +233,7 @@ function AppContent() {
     pendingAutoConnect,
     autoConnecting,
     servers,
-    loading,
+    serversLoading,
     relays,
     authMode,
     steamAuthState.access_token,
@@ -248,13 +264,25 @@ function AppContent() {
       setShowSteamAuthModal(true);
       handleSteamAuthenticate(false);
     },
-    [setShowSteamAuthModal, handleSteamAuthenticate],
+    [setShowSteamAuthModal, handleSteamAuthenticate]
   );
 
   const handleSteamModalClose = useCallback(async () => {
     await onSteamAuthModalClose();
     setPendingAutoConnect(null);
   }, [onSteamAuthModalClose]);
+
+  const handleRelaySelect = useCallback(
+    (relayId: string) => {
+      setSelectedRelay(relayId);
+      setRelayDropdownOpen(false);
+    },
+    [setSelectedRelay]
+  );
+
+  const toggleRelayDropdown = useCallback(() => {
+    setRelayDropdownOpen((prev) => !prev);
+  }, []);
 
   return (
     <div className="crt-frame">
@@ -296,19 +324,16 @@ function AppContent() {
         <main className="main-content">
           <section className="section servers-section">
             <div className="server-list">
-              {loading && servers.length === 0 && (
+              {serversLoading && servers.length === 0 && (
                 <div className="server-loading">Loading servers...</div>
               )}
-              {error && <div className="server-error">Error: {error}</div>}
+              {serversError && (
+                <div className="server-error">Error: {serversError}</div>
+              )}
               {servers.map((server, index) => (
                 <ServerItem
                   key={server.name || index}
                   server={server}
-                  selectedRelay={selectedRelay}
-                  relays={relays}
-                  isLoggedIn={authState.logged_in}
-                  authMode={authMode}
-                  steamAccessToken={steamAuthState.access_token}
                   onLoginRequired={onLoginRequired}
                   onSteamAuthRequired={onSteamAuthRequired}
                 />
@@ -320,9 +345,6 @@ function AppContent() {
         <footer className="section footer">
           <div className="account-info">
             <AccountInfo
-              authMode={authMode}
-              authState={authState}
-              steamAuthState={steamAuthState}
               onLogin={handleLogin}
               onLogout={handleLogout}
               onSteamLogout={handleSteamLogout}

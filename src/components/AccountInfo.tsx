@@ -1,13 +1,4 @@
-import type { AuthMode, AuthState, SteamAuthState } from "../types";
-
-interface AccountInfoProps {
-  authMode: AuthMode;
-  authState: AuthState;
-  steamAuthState: SteamAuthState;
-  onLogin: () => void;
-  onLogout: () => void;
-  onSteamLogout: () => void;
-}
+import { useAppStore } from "../stores";
 
 interface AccountDisplayProps {
   avatar: string;
@@ -41,14 +32,21 @@ function AccountDisplay({ avatar, name, status, action }: AccountDisplayProps) {
   );
 }
 
+interface AccountInfoProps {
+  onLogin: () => void;
+  onLogout: () => void;
+  onSteamLogout: () => void;
+}
+
 export function AccountInfo({
-  authMode,
-  authState,
-  steamAuthState,
   onLogin,
   onLogout,
   onSteamLogout,
 }: AccountInfoProps) {
+  const authMode = useAppStore((s) => s.authMode);
+  const authState = useAppStore((s) => s.authState);
+  const steamAuthState = useAppStore((s) => s.steamAuthState);
+
   if (authMode === "byond") {
     return (
       <AccountDisplay

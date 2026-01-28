@@ -1,33 +1,31 @@
 import { useState } from "react";
 import { GAME_STATES } from "../constants";
-import { useConnectToServer, useError } from "../hooks";
-import type { AuthMode, RelayWithPing, Server } from "../types";
+import { useError } from "../hooks";
+import { useAppStore } from "../stores";
+import type { Server } from "../types";
 import { formatDuration } from "../utils";
+import { useConnect } from "../hooks/useConnect";
 
 interface ServerItemProps {
   server: Server;
-  selectedRelay: string;
-  relays: RelayWithPing[];
-  isLoggedIn: boolean;
-  authMode: AuthMode;
-  steamAccessToken: string | null;
   onLoginRequired: (serverName?: string) => void;
   onSteamAuthRequired: (serverName?: string) => void;
 }
 
 export function ServerItem({
   server,
-  selectedRelay,
-  relays,
-  isLoggedIn,
-  authMode,
-  steamAccessToken,
   onLoginRequired,
   onSteamAuthRequired,
 }: ServerItemProps) {
   const [connecting, setConnecting] = useState(false);
   const { showError } = useError();
-  const { connect } = useConnectToServer(authMode, steamAccessToken);
+  const { connect } = useConnect();
+
+  const authMode = useAppStore((s) => s.authMode);
+  const isLoggedIn = useAppStore((s) => s.authState.logged_in);
+  const steamAccessToken = useAppStore((s) => s.steamAuthState.access_token);
+  const relays = useAppStore((s) => s.relays);
+  const selectedRelay = useAppStore((s) => s.selectedRelay);
 
   const relay = relays.find((r) => r.id === selectedRelay);
   const port = server.url.split(":")[1];

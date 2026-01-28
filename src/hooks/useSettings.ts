@@ -1,12 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useState } from "react";
+import { useAppStore } from "../stores";
 import type { AppSettings, AuthMode } from "../types";
 import { useError } from "./useError";
 
-export function useSettings(onAuthModeChange?: (mode: AuthMode) => void) {
-  const [authMode, setAuthMode] = useState<AuthMode>("cm_ss13");
+export function useSettings() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const { showError } = useError();
+
+  const setAuthMode = useAppStore((s) => s.setAuthMode);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -24,12 +26,11 @@ export function useSettings(onAuthModeChange?: (mode: AuthMode) => void) {
         await invoke<AppSettings>("set_auth_mode", { mode });
         setAuthMode(mode);
         setShowSettingsModal(false);
-        onAuthModeChange?.(mode);
       } catch (err) {
         showError(err instanceof Error ? err.message : String(err));
       }
     },
-    [showError, onAuthModeChange],
+    [showError, setAuthMode]
   );
 
   const openSettings = useCallback(() => {
@@ -41,7 +42,6 @@ export function useSettings(onAuthModeChange?: (mode: AuthMode) => void) {
   }, []);
 
   return {
-    authMode,
     setAuthMode,
     showSettingsModal,
     loadSettings,
