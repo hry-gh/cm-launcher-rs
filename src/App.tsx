@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import "./App.css";
 
 import {
@@ -13,70 +14,114 @@ import {
   SteamAuthModal,
   Titlebar,
 } from "./components";
+import type { AuthModalState } from "./components/AuthModal";
+import type { SteamAuthModalState } from "./components/SteamAuthModal";
 import {
   ErrorProvider,
-  useAuth,
   useConnect,
   useError,
   useGameConnection,
-  useSettings,
-  useSteamAuth,
 } from "./hooks";
 import {
-  initAuthListener,
-  initRelays,
-  initServerFetching,
-  useAppStore,
+  useAuthStore,
+  useServerStore,
+  useSettingsStore,
+  useSteamStore,
 } from "./stores";
-import type { SteamAuthResult, SteamLaunchOptions } from "./types";
+import type { SteamLaunchOptions } from "./types";
 
 function AppContent() {
   const { errors, dismissError, showError } = useError();
 
-  // Store selectors
-  const servers = useAppStore((s) => s.servers);
-  const serversLoading = useAppStore((s) => s.serversLoading);
-  const serversError = useAppStore((s) => s.serversError);
-  const relays = useAppStore((s) => s.relays);
-  const selectedRelay = useAppStore((s) => s.selectedRelay);
-  const setSelectedRelay = useAppStore((s) => s.setSelectedRelay);
-  const authMode = useAppStore((s) => s.authMode);
-  const authState = useAppStore((s) => s.authState);
-  const steamAuthState = useAppStore((s) => s.steamAuthState);
-  const setSteamAuthState = useAppStore((s) => s.setSteamAuthState);
-
-  // Local UI state
-  const [relayDropdownOpen, setRelayDropdownOpen] = useState(false);
+  const {
+    authState,
+    login,
+    logout,
+    initListener: initAuthListener,
+  } = useAuthStore(
+    useShallow((s) => ({
+      authState: s.authState,
+      login: s.login,
+      logout: s.logout,
+      initListener: s.initListener,
+    })),
+  );
 
   const {
-    showAuthModal,
-    authModalState,
-    authError,
-    handleLogin,
-    handleLogout,
-    onAuthModalClose,
-  } = useAuth();
+    available: steamAvailable,
+    accessToken: steamAccessToken,
+    initialize: initializeSteam,
+    authenticate: authenticateSteam,
+    logout: steamLogout,
+    cancelAuthTicket: cancelSteamAuthTicket,
+  } = useSteamStore(
+    useShallow((s) => ({
+      available: s.available,
+      accessToken: s.accessToken,
+      initialize: s.initialize,
+      authenticate: s.authenticate,
+      logout: s.logout,
+      cancelAuthTicket: s.cancelAuthTicket,
+    })),
+  );
 
   const {
-    showSteamAuthModal,
-    setShowSteamAuthModal,
-    steamAuthModalState,
-    steamAuthError,
-    steamLinkingUrl,
-    initializeSteam,
-    handleSteamAuthenticate,
-    onSteamAuthModalClose,
-    handleSteamLogout,
-  } = useSteamAuth();
+    servers,
+    loading: serversLoading,
+    error: serversError,
+    relays,
+    selectedRelay,
+    setSelectedRelay,
+    startFetching,
+    initRelays,
+  } = useServerStore(
+    useShallow((s) => ({
+      servers: s.servers,
+      loading: s.loading,
+      error: s.error,
+      relays: s.relays,
+      selectedRelay: s.selectedRelay,
+      setSelectedRelay: s.setSelectedRelay,
+      startFetching: s.startFetching,
+      initRelays: s.initRelays,
+    })),
+  );
 
   const {
+    authMode,
     setAuthMode,
-    showSettingsModal,
-    loadSettings,
-    handleAuthModeChange,
-    openSettings,
-    closeSettings,
-  } = useSettings();
+    load: loadSettings,
+    save: saveSettings,
+  } = useSettingsStore(
+    useShallow((s) => ({
+      authMode: s.authMode,
+      setAuthMode: s.setAuthMode,
+      load: s.load,
+      save: s.save,
+    })),
+  );
+
+  // Local modal state
+  const [authModal, setAuthModal] = useState<{
+    visible: boolean;
+    state: AuthModalState;
+    error?: string;
+  }>({ visible: false, state: "idle", error: undefined });
+
+  const [steamModal, setSteamModal] = useState<{
+    visible: boolean;
+    state: SteamAuthModalState;
+    error?: string;
+    linkingUrl?: string;
+  }>({
+    visible: false,
+    state: "idle",
+    error: undefined,
+    linkingUrl: undefined,
+  });
+
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [relayDropdownOpen, setRelayDropdownOpen] = useState(false);
 
   const {
     gameConnectionState,
@@ -88,45 +133,45 @@ function AppContent() {
   const { connect } = useConnect();
 
   const [pendingAutoConnect, setPendingAutoConnect] = useState<string | null>(
-    null
+    null,
   );
   const [autoConnecting, setAutoConnecting] = useState(false);
 
-  // Initialize store on mount
+  // Initialize stores on mount
   useEffect(() => {
     const unlistenPromise = initAuthListener();
     initRelays();
-    const cleanupServers = initServerFetching();
+    const cleanupServers = startFetching();
 
     return () => {
       unlistenPromise.then((unlisten) => unlisten());
       cleanupServers();
     };
-  }, []);
+  }, [initAuthListener, initRelays, startFetching]);
 
   // Load initial settings and Steam
   useEffect(() => {
     const loadInitialState = async () => {
       const settings = await loadSettings();
-      const steamAvailable = await initializeSteam();
+      const steamAvail = await initializeSteam();
 
       if (settings?.auth_mode) {
         setAuthMode(settings.auth_mode);
-      } else if (steamAvailable) {
+      } else if (steamAvail) {
         setAuthMode("steam");
       } else {
         setAuthMode("cm_ss13");
       }
 
-      if (steamAvailable) {
+      if (steamAvail) {
         try {
           const launchOptions = await invoke<SteamLaunchOptions>(
-            "get_steam_launch_options"
+            "get_steam_launch_options",
           );
           if (launchOptions.server_name) {
             console.log(
               "Steam launch options detected, will auto-connect to:",
-              launchOptions.server_name
+              launchOptions.server_name,
             );
             setPendingAutoConnect(launchOptions.server_name);
           }
@@ -148,12 +193,12 @@ function AppContent() {
       if (!readyRelay) return;
 
       const server = servers.find(
-        (s) => s.name.toLowerCase() === pendingAutoConnect.toLowerCase()
+        (s) => s.name.toLowerCase() === pendingAutoConnect.toLowerCase(),
       );
 
       if (!server) {
         console.error(
-          `Auto-connect: Server "${pendingAutoConnect}" not found in server list`
+          `Auto-connect: Server "${pendingAutoConnect}" not found in server list`,
         );
         showError(`Server "${pendingAutoConnect}" not found`);
         setPendingAutoConnect(null);
@@ -162,7 +207,7 @@ function AppContent() {
 
       if (server.status !== "available") {
         console.error(
-          `Auto-connect: Server "${pendingAutoConnect}" is not available`
+          `Auto-connect: Server "${pendingAutoConnect}" is not available`,
         );
         showError(`Server "${pendingAutoConnect}" is currently unavailable`);
         setPendingAutoConnect(null);
@@ -180,33 +225,30 @@ function AppContent() {
       }
 
       console.log(
-        `Auto-connecting to ${server.name} via ${readyRelay.name}...`
+        `Auto-connecting to ${server.name} via ${readyRelay.name}...`,
       );
       setAutoConnecting(true);
 
       try {
-        if (authMode === "steam" && !steamAuthState.access_token) {
-          if (showSteamAuthModal) {
+        if (authMode === "steam" && !steamAccessToken) {
+          if (steamModal.visible) {
             return;
           }
 
-          const result = await invoke<SteamAuthResult>("steam_authenticate", {
-            createAccountIfMissing: false,
-          });
+          const result = await authenticateSteam(false);
 
-          if (!result.success || !result.access_token) {
-            if (result.requires_linking) {
-              setShowSteamAuthModal(true);
-              setSteamAuthState((prev) => ({ ...prev, loading: false }));
+          if (!result?.success || !result.access_token) {
+            if (result?.requires_linking) {
+              setSteamModal({
+                visible: true,
+                state: "linking",
+                linkingUrl: result.linking_url || undefined,
+              });
               return;
             }
-            throw new Error(result.error || "Steam authentication failed");
+            throw new Error(result?.error || "Steam authentication failed");
           }
 
-          setSteamAuthState((prev) => ({
-            ...prev,
-            access_token: result.access_token,
-          }));
           return;
         }
 
@@ -236,14 +278,37 @@ function AppContent() {
     serversLoading,
     relays,
     authMode,
-    steamAuthState.access_token,
+    steamAccessToken,
     authState.logged_in,
     showError,
-    showSteamAuthModal,
-    setShowSteamAuthModal,
-    setSteamAuthState,
+    steamModal.visible,
+    authenticateSteam,
     connect,
   ]);
+
+  // Auth handlers
+  const handleLogin = useCallback(async () => {
+    setAuthModal({ visible: true, state: "loading", error: undefined });
+    const result = await login();
+    if (result.success) {
+      setAuthModal({ visible: false, state: "idle", error: undefined });
+    } else {
+      setAuthModal({ visible: true, state: "error", error: result.error });
+    }
+  }, [login]);
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await logout();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : String(err));
+    }
+  }, [logout, showError]);
+
+  const handleAuthModalClose = useCallback(() => {
+    setAuthModal({ visible: false, state: "idle", error: undefined });
+    setPendingAutoConnect(null);
+  }, []);
 
   const onLoginRequired = useCallback((serverName?: string) => {
     if (serverName) {
@@ -251,33 +316,98 @@ function AppContent() {
     }
   }, []);
 
-  const handleAuthModalClose = useCallback(() => {
-    onAuthModalClose();
+  // Steam handlers
+  const handleSteamAuthenticate = useCallback(
+    async (createAccountIfMissing: boolean) => {
+      setSteamModal((prev) => ({
+        ...prev,
+        state: "loading",
+        error: undefined,
+        linkingUrl: undefined,
+      }));
+
+      const result = await authenticateSteam(createAccountIfMissing);
+
+      if (result?.success && result.access_token) {
+        setSteamModal({
+          visible: false,
+          state: "idle",
+          error: undefined,
+          linkingUrl: undefined,
+        });
+        return result;
+      }
+      if (result?.requires_linking) {
+        setSteamModal({
+          visible: true,
+          state: "linking",
+          error: undefined,
+          linkingUrl: result.linking_url || undefined,
+        });
+        return result;
+      }
+      setSteamModal({
+        visible: true,
+        state: "error",
+        error: result?.error || "Authentication failed",
+        linkingUrl: undefined,
+      });
+      return result;
+    },
+    [authenticateSteam],
+  );
+
+  const handleSteamModalClose = useCallback(async () => {
+    setSteamModal({
+      visible: false,
+      state: "idle",
+      error: undefined,
+      linkingUrl: undefined,
+    });
     setPendingAutoConnect(null);
-  }, [onAuthModalClose]);
+    await cancelSteamAuthTicket();
+  }, [cancelSteamAuthTicket]);
+
+  const handleSteamLogout = useCallback(() => {
+    steamLogout();
+  }, [steamLogout]);
 
   const onSteamAuthRequired = useCallback(
     (serverName?: string) => {
       if (serverName) {
         setPendingAutoConnect(serverName);
       }
-      setShowSteamAuthModal(true);
+      setSteamModal({
+        visible: true,
+        state: "idle",
+        error: undefined,
+        linkingUrl: undefined,
+      });
       handleSteamAuthenticate(false);
     },
-    [setShowSteamAuthModal, handleSteamAuthenticate]
+    [handleSteamAuthenticate],
   );
 
-  const handleSteamModalClose = useCallback(async () => {
-    await onSteamAuthModalClose();
-    setPendingAutoConnect(null);
-  }, [onSteamAuthModalClose]);
+  // Settings handlers
+  const handleAuthModeChange = useCallback(
+    async (mode: typeof authMode) => {
+      try {
+        await saveSettings(mode);
+        setSettingsVisible(false);
+      } catch (err) {
+        showError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [saveSettings, showError],
+  );
 
+  // Relay handlers
   const handleRelaySelect = useCallback(
     (relayId: string) => {
       setSelectedRelay(relayId);
       setRelayDropdownOpen(false);
     },
-    [setSelectedRelay]
+    [setSelectedRelay],
   );
 
   const toggleRelayDropdown = useCallback(() => {
@@ -290,26 +420,21 @@ function AppContent() {
       <div className="crt" />
       <ErrorNotifications errors={errors} onDismiss={dismissError} />
       <AuthModal
-        visible={showAuthModal}
-        state={authModalState}
-        error={authError}
+        {...authModal}
         onLogin={handleLogin}
         onClose={handleAuthModalClose}
       />
       <SteamAuthModal
-        visible={showSteamAuthModal}
-        state={steamAuthModalState}
-        error={steamAuthError}
-        linkingUrl={steamLinkingUrl}
+        {...steamModal}
         onAuthenticate={handleSteamAuthenticate}
         onClose={handleSteamModalClose}
       />
       <SettingsModal
-        visible={showSettingsModal}
+        visible={settingsVisible}
         authMode={authMode}
-        steamAvailable={steamAuthState.available}
+        steamAvailable={steamAvailable}
         onAuthModeChange={handleAuthModeChange}
-        onClose={closeSettings}
+        onClose={() => setSettingsVisible(false)}
       />
       <GameConnectionModal
         visible={showGameConnectionModal}
@@ -361,7 +486,7 @@ function AppContent() {
             <button
               type="button"
               className="button-secondary settings-button"
-              onClick={openSettings}
+              onClick={() => setSettingsVisible(true)}
               title="Settings"
             >
               Settings

@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { GAME_STATES } from "../constants";
-import { useError } from "../hooks";
-import { useAppStore } from "../stores";
+import { useConnect, useError } from "../hooks";
+import { useServerStore, useSettingsStore, useAuthStore, useSteamStore } from "../stores";
 import type { Server } from "../types";
 import { formatDuration } from "../utils";
-import { useConnect } from "../hooks/useConnect";
 
 interface ServerItemProps {
   server: Server;
@@ -21,11 +20,11 @@ export function ServerItem({
   const { showError } = useError();
   const { connect } = useConnect();
 
-  const authMode = useAppStore((s) => s.authMode);
-  const isLoggedIn = useAppStore((s) => s.authState.logged_in);
-  const steamAccessToken = useAppStore((s) => s.steamAuthState.access_token);
-  const relays = useAppStore((s) => s.relays);
-  const selectedRelay = useAppStore((s) => s.selectedRelay);
+  const authMode = useSettingsStore((s) => s.authMode);
+  const isLoggedIn = useAuthStore((s) => s.authState.logged_in);
+  const steamAccessToken = useSteamStore((s) => s.accessToken);
+  const relays = useServerStore((s) => s.relays);
+  const selectedRelay = useServerStore((s) => s.selectedRelay);
 
   const relay = relays.find((r) => r.id === selectedRelay);
   const port = server.url.split(":")[1];
