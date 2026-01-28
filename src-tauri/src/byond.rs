@@ -12,6 +12,8 @@ use crate::presence::{ConnectionParams, PresenceManager};
 use std::process::Command;
 #[cfg(target_os = "windows")]
 use std::sync::Arc;
+#[cfg(target_os = "windows")]
+use tauri::Emitter;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ByondVersionInfo {
     pub version: String,
@@ -202,10 +204,13 @@ pub async fn connect_to_server(
 
     #[cfg(target_os = "windows")]
     {
-        // Get the control server port to include in the connection URL
-        let control_port = app
-            .try_state::<ControlServer>()
-            .map(|s| s.port.to_string());
+        if let Some(control_server) = app.try_state::<ControlServer>() {
+            control_server.reset_connected_flag();
+        }
+
+        app.emit("game-connecting", &server_name).ok();
+
+        let control_port = app.try_state::<ControlServer>().map(|s| s.port.to_string());
 
         // Build query parameters
         let mut query_params = Vec::new();
@@ -260,7 +265,14 @@ pub async fn connect_to_server(
     #[cfg(not(target_os = "windows"))]
     {
         // Suppress unused warnings
-        let _ = (dreamseeker_path, host, port, server_name, access_type, access_token);
+        let _ = (
+            dreamseeker_path,
+            host,
+            port,
+            server_name,
+            access_type,
+            access_token,
+        );
         Err("BYOND is only natively supported on Windows".to_string())
     }
 }

@@ -6,6 +6,7 @@ import {
   AccountInfo,
   AuthModal,
   ErrorNotifications,
+  GameConnectionModal,
   RelayDropdown,
   ServerItem,
   SettingsModal,
@@ -16,6 +17,7 @@ import {
   ErrorProvider,
   useAuth,
   useError,
+  useGameConnection,
   useRelays,
   useServers,
   useSettings,
@@ -67,6 +69,13 @@ function AppContent() {
     openSettings,
     closeSettings,
   } = useSettings();
+
+  const {
+    gameConnectionState,
+    connectedServerName,
+    closeGameConnectionModal,
+    showGameConnectionModal,
+  } = useGameConnection();
 
   const [pendingAutoConnect, setPendingAutoConnect] = useState<string | null>(
     null,
@@ -278,6 +287,12 @@ function AppContent() {
         steamAvailable={steamAuthState.available}
         onAuthModeChange={handleAuthModeChange}
         onClose={closeSettings}
+      />
+      <GameConnectionModal
+        visible={showGameConnectionModal}
+        state={gameConnectionState}
+        serverName={connectedServerName}
+        onClose={closeGameConnectionModal}
       />
 
       <div className="launcher">
