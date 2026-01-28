@@ -162,35 +162,38 @@ function AppContent() {
       setPendingAutoConnect(null);
 
       try {
-        if (authMode === "steam" && !steamAuthState.access_token) {
-          const result = await invoke<SteamAuthResult>("steam_authenticate", {
-            createAccountIfMissing: false,
-          });
+        if (authMode === "steam") {
+          let accessToken = steamAuthState.access_token;
 
-          if (!result.success || !result.access_token) {
-            if (result.requires_linking) {
-              setAutoConnecting(false);
-              return;
+          if (!accessToken) {
+            const result = await invoke<SteamAuthResult>("steam_authenticate", {
+              createAccountIfMissing: false,
+            });
+
+            if (!result.success || !result.access_token) {
+              if (result.requires_linking) {
+                return;
+              }
+              throw new Error(result.error || "Steam authentication failed");
             }
-            throw new Error(result.error || "Steam authentication failed");
-          }
 
-          setSteamAuthState((prev) => ({
-            ...prev,
-            access_token: result.access_token,
-          }));
+            accessToken = result.access_token;
+            setSteamAuthState((prev) => ({
+              ...prev,
+              access_token: result.access_token,
+            }));
+          }
 
           await invoke("connect_to_server", {
             version: byondVersion,
             host: readyRelay.host,
             port: port,
             accessType: "steam",
-            accessToken: result.access_token,
+            accessToken: accessToken,
             serverName: server.name,
           });
         } else if (authMode === "cm_ss13") {
           if (!authState.logged_in) {
-            setAutoConnecting(false);
             return;
           }
 

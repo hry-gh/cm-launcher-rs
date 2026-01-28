@@ -10,6 +10,7 @@
   --bg-highlight-faint: rgba(0, 235, 78, 0.05);
   --error: #ff4444;
   --transition: all 0.2s ease;
+  --titlebar-height: 41px;
 }
 
 * {
@@ -569,7 +570,10 @@ body {
 /* Auth Modal */
 .auth-modal-overlay {
   position: fixed;
-  inset: 0;
+  top: var(--titlebar-height);
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: rgba(0, 0, 0, 0.75);
   display: flex;
   align-items: center;
@@ -671,7 +675,10 @@ body {
 /* Settings Modal */
 .settings-modal-overlay {
   position: fixed;
-  inset: 0;
+  top: var(--titlebar-height);
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: rgba(0, 0, 0, 0.75);
   display: flex;
   align-items: center;
@@ -811,7 +818,10 @@ body {
 /* Game Connection Modal */
 .game-connection-overlay {
   position: fixed;
-  inset: 0;
+  top: var(--titlebar-height);
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: rgba(0, 0, 0, 0.9);
   display: flex;
   align-items: center;
