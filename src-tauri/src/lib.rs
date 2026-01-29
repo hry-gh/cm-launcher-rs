@@ -2,6 +2,7 @@ mod auth;
 mod byond;
 mod control_server;
 mod discord;
+mod logging;
 mod presence;
 mod settings;
 #[cfg(feature = "steam")]
@@ -46,7 +47,7 @@ fn kill_game(presence_manager: tauri::State<'_, std::sync::Arc<presence::Presenc
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tracing_subscriber::fmt::init();
+    let _guard = logging::init_logging();
 
     #[cfg(target_os = "windows")]
     {

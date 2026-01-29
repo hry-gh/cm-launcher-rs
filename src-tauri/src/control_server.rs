@@ -56,16 +56,37 @@ impl ControlServer {
         app_handle: tauri::AppHandle,
         presence_manager: Arc<PresenceManager>,
     ) -> Result<Self, String> {
-        let server = Server::http("127.0.0.1:0")
-            .map_err(|e| format!("Failed to start control server: {}", e))?;
+        tracing::info!("Starting control server on 127.0.0.1:0");
 
-        let port = server
-            .server_addr()
-            .to_ip()
-            .ok_or("Failed to get server address")?
-            .port();
+        let server = Server::http("127.0.0.1:0").map_err(|e| {
+            tracing::error!(
+                "Failed to start control server: {} (error type: {:?})",
+                e,
+                std::any::type_name_of_val(&e)
+            );
+            tracing::error!(
+                "This may be caused by: firewall blocking the connection, \
+                antivirus software, or network configuration issues. \
+                On Windows, check Windows Firewall settings and any third-party security software."
+            );
+            format!(
+                "Failed to start control server: {}. \
+                Please check your firewall and antivirus settings.",
+                e
+            )
+        })?;
 
-        tracing::info!("Control server started on port {}", port);
+        let addr = server.server_addr().to_ip().ok_or_else(|| {
+            tracing::error!("Failed to get control server address after binding");
+            "Failed to get server address".to_string()
+        })?;
+
+        let port = addr.port();
+        tracing::info!(
+            "Control server started successfully on {}:{} (listening for game connections)",
+            addr.ip(),
+            port
+        );
 
         let game_connected = Arc::new(AtomicBool::new(false));
         let game_connected_clone = Arc::clone(&game_connected);
