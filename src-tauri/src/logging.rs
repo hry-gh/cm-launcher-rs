@@ -42,7 +42,7 @@ pub fn init_logging() -> WorkerGuard {
 fn get_log_directory() -> std::path::PathBuf {
     let log_dir = dirs::data_local_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("cm-launcher")
+        .join("com.cm-ss13.launcher")
         .join("logs");
 
     if let Err(e) = std::fs::create_dir_all(&log_dir) {
