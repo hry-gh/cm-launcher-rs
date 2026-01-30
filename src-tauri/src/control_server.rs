@@ -1,9 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use tauri::Emitter;
-#[cfg(feature = "steam")]
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tiny_http::{Response, Server};
 use url::Url;
 
@@ -139,6 +137,9 @@ impl ControlServer {
                 "/restart" => {
                     Self::handle_restart(request, &url, &app_handle, &presence_manager);
                 }
+                "/get-url" => {
+                    Self::handle_get_url(request, &app_handle, &presence_manager);
+                }
                 "/status" => {
                     Self::handle_status(request, &presence_manager);
                 }
@@ -224,6 +225,65 @@ impl ControlServer {
 
         let response = json_response(200, serde_json::json!({"status": "restarting"}));
         request.respond(response).ok();
+    }
+
+    fn handle_get_url(
+        request: tiny_http::Request,
+        app_handle: &tauri::AppHandle,
+        presence_manager: &Arc<PresenceManager>,
+    ) {
+        tracing::info!("Get URL request received");
+
+        let Some(params) = presence_manager.get_last_connection_params() else {
+            let response = json_response(
+                400,
+                serde_json::json!({"error": "No previous connection available"}),
+            );
+            request.respond(response).ok();
+            return;
+        };
+
+        let result: Result<String, String> = tauri::async_runtime::block_on(async {
+            let fresh_params = refresh_auth_token(app_handle, params).await?;
+
+            let control_port = app_handle
+                .try_state::<crate::control_server::ControlServer>()
+                .map(|s| s.port.to_string());
+
+            let mut query_params = Vec::new();
+            if let (Some(access_type), Some(token)) =
+                (&fresh_params.access_type, &fresh_params.access_token)
+            {
+                query_params.push(format!("{}={}", access_type, token));
+            }
+            if let Some(port) = &control_port {
+                query_params.push(format!("launcher_port={}", port));
+            }
+
+            let url = if query_params.is_empty() {
+                format!("byond://{}:{}", fresh_params.host, fresh_params.port)
+            } else {
+                format!(
+                    "byond://{}:{}?{}",
+                    fresh_params.host,
+                    fresh_params.port,
+                    query_params.join("&")
+                )
+            };
+
+            Ok(url)
+        });
+
+        match result {
+            Ok(url) => {
+                let response = json_response(200, serde_json::json!({"url": url}));
+                request.respond(response).ok();
+            }
+            Err(e) => {
+                let response = json_response(500, serde_json::json!({"error": e}));
+                request.respond(response).ok();
+            }
+        }
     }
 
     fn handle_status(request: tiny_http::Request, presence_manager: &Arc<PresenceManager>) {
