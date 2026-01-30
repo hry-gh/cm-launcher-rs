@@ -1,7 +1,13 @@
+import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 import { GAME_STATES } from "../constants";
 import { useConnect, useError } from "../hooks";
-import { useServerStore, useSettingsStore, useAuthStore, useSteamStore } from "../stores";
+import {
+  useServerStore,
+  useSettingsStore,
+  useAuthStore,
+  useSteamStore,
+} from "../stores";
 import type { Server } from "../types";
 import { formatDuration } from "../utils";
 
@@ -43,6 +49,20 @@ export function ServerItem({
     if (authMode === "steam" && !steamAccessToken) {
       onSteamAuthRequired();
       return;
+    }
+
+    if (authMode === "byond") {
+      try {
+        const pagerRunning = await invoke<boolean>("is_byond_pager_running");
+        if (!pagerRunning) {
+          showError(
+            "BYOND pager is not running. Please open BYOND and log in before connecting.",
+          );
+          return;
+        }
+      } catch {
+        // If we can't check, proceed anyway (e.g., on non-Windows)
+      }
     }
 
     if (!relay || !byondVersion || !port) return;

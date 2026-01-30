@@ -326,7 +326,6 @@ function AppContent() {
     async (mode: typeof authMode) => {
       try {
         await saveAuthMode(mode);
-        setSettingsVisible(false);
       } catch (err) {
         showError(err instanceof Error ? err.message : String(err));
       }

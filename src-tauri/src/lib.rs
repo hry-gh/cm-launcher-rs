@@ -22,7 +22,7 @@ use auth::{
 };
 use byond::{
     check_byond_version, connect_to_server, delete_byond_version, install_byond_version,
-    list_installed_byond_versions,
+    is_byond_pager_running, list_installed_byond_versions,
 };
 use servers::get_servers;
 use settings::{get_settings, set_auth_mode, set_theme};
@@ -75,6 +75,7 @@ pub fn run() {
             connect_to_server,
             list_installed_byond_versions,
             delete_byond_version,
+            is_byond_pager_running,
             start_login,
             logout,
             get_auth_state,
@@ -98,6 +99,7 @@ pub fn run() {
             connect_to_server,
             list_installed_byond_versions,
             delete_byond_version,
+            is_byond_pager_running,
             start_login,
             logout,
             get_auth_state,

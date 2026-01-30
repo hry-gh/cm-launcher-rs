@@ -360,3 +360,25 @@ pub async fn delete_byond_version(app: AppHandle, version: String) -> Result<boo
         Ok(false)
     }
 }
+
+#[tauri::command]
+pub async fn is_byond_pager_running() -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use sysinfo::System;
+
+        let s = System::new_all();
+        let running = s.processes().values().any(|p| {
+            p.name()
+                .to_str()
+                .map(|name| name.eq_ignore_ascii_case("byond.exe"))
+                .unwrap_or(false)
+        });
+        Ok(running)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(false)
+    }
+}

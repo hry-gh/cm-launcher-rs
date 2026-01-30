@@ -1,4 +1,6 @@
+import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { useEffect, useState } from "react";
 import type { AuthMode, Theme } from "../types";
 import { Modal, ModalCloseButton } from "./Modal";
 
@@ -89,6 +91,18 @@ export function SettingsModal({
   onThemeChange,
   onClose,
 }: SettingsModalProps) {
+  const [byondPagerRunning, setByondPagerRunning] = useState<boolean | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (visible && authMode === "byond") {
+      invoke<boolean>("is_byond_pager_running")
+        .then(setByondPagerRunning)
+        .catch(() => setByondPagerRunning(null));
+    }
+  }, [visible, authMode]);
+
   return (
     <Modal
       visible={visible}
@@ -140,6 +154,12 @@ export function SettingsModal({
           <p className="settings-description">
             Choose how you want to authenticate when connecting to servers.
           </p>
+          {authMode === "byond" && byondPagerRunning === false && (
+            <div className="auth-mode-warning">
+              BYOND pager (byond.exe) is not running. Please open BYOND and log
+              in before connecting to a server.
+            </div>
+          )}
           <div className="auth-mode-options">
             <AuthModeOption
               mode="cm_ss13"
