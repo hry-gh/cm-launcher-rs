@@ -315,7 +315,16 @@ async fn get_auth_for_connection(
                 })
             }
         }
-        AuthMode::Byond => Ok((Some("byond".to_string()), None)),
+        AuthMode::Byond => {
+            if !check_byond_pager_running() {
+                return Err(AuthError {
+                    code: "byond_pager_not_running".to_string(),
+                    message: "BYOND pager is not running. Please open BYOND and log in before connecting.".to_string(),
+                    linking_url: None,
+                });
+            }
+            Ok((Some("byond".to_string()), None))
+        }
     }
 }
 
@@ -527,26 +536,29 @@ pub async fn delete_byond_version(app: AppHandle, version: String) -> Result<boo
     }
 }
 
-#[tauri::command]
-pub async fn is_byond_pager_running() -> Result<bool, String> {
+fn check_byond_pager_running() -> bool {
     #[cfg(target_os = "windows")]
     {
         use sysinfo::System;
 
         let s = System::new_all();
-        let running = s.processes().values().any(|p| {
+        s.processes().values().any(|p| {
             p.name()
                 .to_str()
                 .map(|name| name.eq_ignore_ascii_case("byond.exe"))
                 .unwrap_or(false)
-        });
-        Ok(running)
+        })
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        Ok(false)
+        false
     }
+}
+
+#[tauri::command]
+pub async fn is_byond_pager_running() -> Result<bool, String> {
+    Ok(check_byond_pager_running())
 }
 #[tauri::command]
 pub fn is_dev_mode() -> bool {
