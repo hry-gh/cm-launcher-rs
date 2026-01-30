@@ -247,29 +247,16 @@ impl ControlServer {
             let fresh_params = refresh_auth_token(app_handle, params).await?;
 
             let control_port = app_handle
-                .try_state::<crate::control_server::ControlServer>()
+                .try_state::<ControlServer>()
                 .map(|s| s.port.to_string());
 
-            let mut query_params = Vec::new();
-            if let (Some(access_type), Some(token)) =
-                (&fresh_params.access_type, &fresh_params.access_token)
-            {
-                query_params.push(format!("{}={}", access_type, token));
-            }
-            if let Some(port) = &control_port {
-                query_params.push(format!("launcher_port={}", port));
-            }
-
-            let url = if query_params.is_empty() {
-                format!("byond://{}:{}", fresh_params.host, fresh_params.port)
-            } else {
-                format!(
-                    "byond://{}:{}?{}",
-                    fresh_params.host,
-                    fresh_params.port,
-                    query_params.join("&")
-                )
-            };
+            let url = crate::byond::build_connect_url(
+                &fresh_params.host,
+                &fresh_params.port,
+                fresh_params.access_type.as_deref(),
+                fresh_params.access_token.as_deref(),
+                control_port.as_deref(),
+            );
 
             Ok(url)
         });

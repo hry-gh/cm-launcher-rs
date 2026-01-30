@@ -45,6 +45,29 @@ pub struct ConnectionResult {
     pub auth_error: Option<AuthError>,
 }
 
+/// Build a BYOND connection URL with optional auth and launcher port.
+pub fn build_connect_url(
+    host: &str,
+    port: &str,
+    access_type: Option<&str>,
+    access_token: Option<&str>,
+    launcher_port: Option<&str>,
+) -> String {
+    let mut query_params = Vec::new();
+    if let (Some(access_type), Some(token)) = (access_type, access_token) {
+        query_params.push(format!("{}={}", access_type, token));
+    }
+    if let Some(port) = launcher_port {
+        query_params.push(format!("launcher_port={}", port));
+    }
+
+    if query_params.is_empty() {
+        format!("byond://{}:{}", host, port)
+    } else {
+        format!("byond://{}:{}?{}", host, port, query_params.join("&"))
+    }
+}
+
 fn get_byond_base_dir(_app: &AppHandle) -> Result<PathBuf, String> {
     let local_data = dirs::data_local_dir()
         .ok_or("Failed to get local data directory")?
@@ -430,19 +453,13 @@ async fn connect_to_server_impl(
 
         let control_port = app.try_state::<ControlServer>().map(|s| s.port.to_string());
 
-        let mut query_params = Vec::new();
-        if let (Some(access_type), Some(token)) = (&access_type, &access_token) {
-            query_params.push(format!("{}={}", access_type, token));
-        }
-        if let Some(port) = &control_port {
-            query_params.push(format!("launcher_port={}", port));
-        }
-
-        let connect_url = if query_params.is_empty() {
-            format!("byond://{}:{}", host, port)
-        } else {
-            format!("byond://{}:{}?{}", host, port, query_params.join("&"))
-        };
+        let connect_url = build_connect_url(
+            &host,
+            &port,
+            access_type.as_deref(),
+            access_token.as_deref(),
+            control_port.as_deref(),
+        );
 
         // Set a unique WebView2 user data folder to avoid conflicts with the system BYOND pager.
         // When the BYOND pager is running, it locks the default WebView2 user data directory,
