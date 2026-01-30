@@ -1,3 +1,4 @@
+import { openUrl } from "@tauri-apps/plugin-opener";
 import type { AuthMode, Theme } from "../types";
 import { Modal, ModalCloseButton } from "./Modal";
 
@@ -98,6 +99,16 @@ export function SettingsModal({
     >
       <div className="settings-modal-header">
         <h2>Settings</h2>
+        <button
+          type="button"
+          className="help-link"
+          onClick={() =>
+            openUrl("https://github.com/cmss13-devs/cm-launcher/issues")
+          }
+          title="Report an issue"
+        >
+          Help
+        </button>
         <ModalCloseButton onClick={onClose} />
       </div>
       <div className="settings-modal-content">
